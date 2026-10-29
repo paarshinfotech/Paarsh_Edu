@@ -3,11 +3,10 @@ import _db from "../../../../utils/db";
 import MeetingLink from "../../../../models/MeetingLink.model";
 import { authMiddleware } from "../../../../middlewares/auth";
 
-await _db();
-       
 // GET all meeting links
 export const GET = authMiddleware(async (req) => {
   try {
+    await _db();
     
     // Extract query parameters for filtering
     const { searchParams } = new URL(req.url);
@@ -43,9 +42,8 @@ export const GET = authMiddleware(async (req) => {
     if (sortField) {
       sortOptions[sortField] = sortOrder === "asc" ? 1 : -1;
     } else {
-      // Default sort: upcoming meetings first, then by date
-      sortOptions["status"] = 1; // upcoming first
-      sortOptions["date"] = 1; // earliest date first
+      sortOptions["status"] = 1;
+      sortOptions["date"] = 1;
     }
     
     // Fetch meeting links with pagination
@@ -62,26 +60,22 @@ export const GET = authMiddleware(async (req) => {
     const lastWeek = new Date(today);
     lastWeek.setDate(lastWeek.getDate() - 7);
     
-    // Count upcoming meetings
     const upcomingCount = await MeetingLink.countDocuments({
       isDeleted: false,
       status: "upcoming",
     });
     
-    // Count past meetings with recordings
     const recordingsCount = await MeetingLink.countDocuments({
       isDeleted: false,
       status: "past",
       recording: { $exists: true, $ne: null, $ne: "" },
     });
     
-    // Count meetings created in the last week for growth stats
     const newMeetingsLastWeek = await MeetingLink.countDocuments({
       isDeleted: false,
       createdAt: { $gte: lastWeek },
     });
     
-    // Count previous week for comparison
     const twoWeeksAgo = new Date(lastWeek);
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 7);
     const prevWeekMeetings = await MeetingLink.countDocuments({
@@ -89,14 +83,12 @@ export const GET = authMiddleware(async (req) => {
       createdAt: { $gte: twoWeeksAgo, $lt: lastWeek },
     });
     
-    // Count new upcoming meetings created in the last week
     const newUpcomingLastWeek = await MeetingLink.countDocuments({
       isDeleted: false,
       status: "upcoming",
       createdAt: { $gte: lastWeek },
     });
     
-    // Count new recordings added in the last month
     const lastMonth = new Date(today);
     lastMonth.setMonth(lastMonth.getMonth() - 1);
     const newRecordingsLastMonth = await MeetingLink.countDocuments({
@@ -109,12 +101,11 @@ export const GET = authMiddleware(async (req) => {
     // Update status based on date automatically before sending response
     const updatedLinks = await Promise.all(meetingLinks.map(async link => {
       const meetingDate = new Date(link.date);
-      const today = new Date();
+      const now = new Date();
       
-      // If status is not cancelled and the date has passed, update to past
-      if (link.status !== "cancelled" && meetingDate < today && link.status !== "past") {
+      if (link.status !== "cancelled" && meetingDate < now && link.status !== "past") {
         link.status = "past";
-        await link.save(); // Save the updated status
+        await link.save();
       }
       
       return link;
@@ -146,18 +137,18 @@ export const GET = authMiddleware(async (req) => {
   } catch (error) {
     console.error("Error fetching meeting links:", error);
     return NextResponse.json(
-      { success: false, error: "Internal server error" },
+      { success: false, error: error.message || "Internal server error" },
       { status: 500 }
     );
   }
-} , ["admin" , "user"]);
+}, ["admin", "user"]);
 
 // POST create a new meeting link (admin only)
 export const POST = authMiddleware(async (req) => {
   try {
+    await _db();
     const { user } = req;
     
-    // Check if user is admin
     if (!user.isAdmin) {
       return NextResponse.json(
         { success: false, error: "Unauthorized access" },
@@ -167,7 +158,6 @@ export const POST = authMiddleware(async (req) => {
     
     const body = await req.json();
     
-    // Validate required fields
     const requiredFields = ["title", "description", "date", "time", "link", "platform", "instructor"];
     const missingFields = requiredFields.filter(field => !body[field]);
     
@@ -178,10 +168,9 @@ export const POST = authMiddleware(async (req) => {
       );
     }
     
-    // Create new meeting link
     const meetingLink = new MeetingLink({
       ...body,
-      createdBy: user._id,  // Add the admin's ID as creator
+      createdBy: user._id,
     });
     
     await meetingLink.save();
@@ -194,18 +183,18 @@ export const POST = authMiddleware(async (req) => {
   } catch (error) {
     console.error("Error creating meeting link:", error);
     return NextResponse.json(
-      { success: false, error: "Internal server error" },
+      { success: false, error: error.message || "Internal server error" },
       { status: 500 }
     );
   }
 }, ["admin"]);
 
-// DELETE all meeting links (admin only) - Not recommended but included for completeness
+// DELETE all meeting links (admin only)
 export const DELETE = authMiddleware(async (req) => {
   try {
+    await _db();
     const { user } = req;
     
-    // Check if user is admin
     if (!user.isAdmin) {
       return NextResponse.json(
         { success: false, error: "Unauthorized access" },
@@ -213,9 +202,6 @@ export const DELETE = authMiddleware(async (req) => {
       );
     }
     
-    await dbConnect();
-    
-    // This is a dangerous operation, so let's add an extra check
     const { searchParams } = new URL(req.url);
     const confirmation = searchParams.get("confirm");
     
@@ -226,7 +212,6 @@ export const DELETE = authMiddleware(async (req) => {
       );
     }
     
-    // Soft delete all meeting links
     await MeetingLink.updateMany({}, { isDeleted: true });
     
     return NextResponse.json({
@@ -237,8 +222,8 @@ export const DELETE = authMiddleware(async (req) => {
   } catch (error) {
     console.error("Error deleting all meeting links:", error);
     return NextResponse.json(
-      { success: false, error: "Internal server error" },
+      { success: false, error: error.message || "Internal server error" },
       { status: 500 }
     );
   }
-}, ["admin"]); 
+}, ["admin"]);

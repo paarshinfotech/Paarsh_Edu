@@ -6,10 +6,9 @@ import AgentModel from "../../../../../models/Agent.model";
 import validator from "validator";
 import _db from "../../../../../utils/db";
 
-await _db();
-
 export async function POST(request) {
   try {
+    await _db();
     const { email, password } = await request.json();
 
     if (!validator.isEmail(email)) {
@@ -49,29 +48,32 @@ export async function POST(request) {
     if (!isMatch) {
       return NextResponse.json({
         success: false,
-        error: "Incorrect password",
-      },
-      { status: 401 },
-    );
+        error: "Invalid credentials",
+      }, { status: 401 });
     }
 
     const { accessToken, refreshToken } = generateTokens(user._id, role);
 
-    const { password: _, ...safeUser } = user.toObject();
+    const { password: _, ...userData } = user.toObject();
 
     return NextResponse.json({
       success: true,
-      message: "Login Successful",
-      user: { ...safeUser, role },
-      admin_access_token: accessToken,
-      admin_refresh_token: refreshToken,
-      role,
-      redirectTo,
+      message: "Login successful",
+      data: {
+        accessToken,
+        refreshToken,
+        role,
+        user: userData,
+        redirectTo,
+      },
     });
   } catch (error) {
-    console.error("Login error:", error);
+    console.error("Error in login:", error);
     return NextResponse.json(
-      { success: false, error: "Something went wrong" },
+      {
+        success: false,
+        error: error.message || "Internal server error",
+      },
       { status: 500 },
     );
   }

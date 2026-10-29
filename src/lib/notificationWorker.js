@@ -13,15 +13,10 @@ import { getSocket } from '../lib/socket.js';
 import { bootstrapSocketForWorker } from '../../utils/initSocketForWorker.js';
 import AgentModel from 'models/Agent.model.js';
 
-bootstrapSocketForWorker(); // 🔥 Full Socket.IO initialized now in worker
-
 let notificationWorker = null;
 let emailWorker = null;
 let isNotificationWorkerRunning = false;
 let isEmailWorkerRunning = false;
-
-
-await _db(); // Ensure database connection is established
 
 // Auto-initialize function
 export async function autoInitializeWorker() {
@@ -32,7 +27,10 @@ export async function autoInitializeWorker() {
 
   try {
     console.log('🚀 Auto-initializing notification worker...');
-    
+
+    await _db(); // Ensure database connection is established
+    bootstrapSocketForWorker(); // 🔥 Full Socket.IO initialized now in worker
+
   // Initialize notification worker
     if (!isNotificationWorkerRunning) {
 

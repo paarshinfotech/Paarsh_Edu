@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import Razorpay from "razorpay";
-import {authMiddleware} from "../../../../middlewares/auth";
+import { authMiddleware } from "../../../../middlewares/auth";
 import UserModel from "../../../../models/User.model";
 import CourseModel from "../../../../models/Courses/Course.model";
 import TransactionModel from "../../../../models/Transaction.model";
@@ -8,10 +8,9 @@ import { RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET } from "../../../../config/config"
 import shortid from "shortid";
 import _db from "../../../../utils/db";
 
-await _db();
-
 export const POST = authMiddleware(async (request) => {
   try {
+    await _db();
     const { userId, courseId, amount, offerId, agentRefCode } = await request.json();
 
     if (!userId || !courseId || !amount) {
@@ -31,7 +30,7 @@ export const POST = authMiddleware(async (request) => {
       );
     }
 
-    if (user.purchasedCourses.includes(courseId)) {
+    if (user.purchasedCourses && user.purchasedCourses.some(c => c.course?.toString() === courseId.toString())) {
       return NextResponse.json(
         { success: false, error: "Course already purchased" },
         { status: 400 },
@@ -53,7 +52,7 @@ export const POST = authMiddleware(async (request) => {
       notes: {
         userId,
         courseId,
-        offerId, // Include offer ID in payment notes if available
+        offerId,
       },
     };
 
@@ -63,7 +62,7 @@ export const POST = authMiddleware(async (request) => {
         userId,
         courseId,
         orderId: order.id,
-        amount: parseInt(course.price),
+        amount: parseInt(course.price) || amount,
         agentRefCode,
         status: "PENDING",
       });
@@ -80,16 +79,16 @@ export const POST = authMiddleware(async (request) => {
         },
       });
     } catch (err) {
-      console.log(err);
+      console.error("Razorpay order creation error:", err);
       return NextResponse.json(
-        { success: false, error: "Error creating order" },
+        { success: false, error: err.message || "Error creating order" },
         { status: 500 }
       );
     }
   } catch (error) {
-    console.log(error);
+    console.error("Order creation route error:", error);
     return NextResponse.json(
-      { success: false, error: "Internal server error" },
+      { success: false, error: error.message || "Internal server error" },
       { status: 500 }
     );
   }
