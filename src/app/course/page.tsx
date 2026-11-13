@@ -273,15 +273,26 @@ const BlogSidebarPage = () => {
   }, [courseWithOffer?.tags]);
 
   const isCoursePurchased = useMemo(() => {
-    if (!userCourseData?.purchasedCourses || !courseWithOffer?._id) return false;
-    return userCourseData.purchasedCourses.some(
-      (purchasedCourse) => purchasedCourse._id === courseWithOffer._id
+    // API returns { success, data: userObject } — purchasedCourses is in data.data
+    const purchasedCourses = userCourseData?.data?.purchasedCourses ?? userCourseData?.purchasedCourses;
+    if (!purchasedCourses || !courseWithOffer?._id) return false;
+    return purchasedCourses.some(
+      (purchasedCourse) =>
+        purchasedCourse.course?._id?.toString() === courseWithOffer._id?.toString() ||
+        purchasedCourse.course?.toString() === courseWithOffer._id?.toString()
     );
   }, [userCourseData, courseWithOffer]);
 
   const handleGoToCourse = () => {
-    router.push("/total-courses");
+    router.push("/total-courses"); // ✅ Redirect to My Courses
   };
+
+  // Auto-close the purchase modal when payment is confirmed
+  useEffect(() => {
+    if (isCoursePurchased && isModalOpen) {
+      setIsModalOpen(false);
+    }
+  }, [isCoursePurchased, isModalOpen]);
 
   return (
     <SkeletonThemeProvider>

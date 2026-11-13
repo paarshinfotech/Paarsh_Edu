@@ -11,7 +11,6 @@ import {
   useVerifyPaymentMutation,
 } from "@/services/api";
 import { RAZORPAY_KEY_ID } from "../../config/config";
-import { set } from "mongoose";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -30,9 +29,8 @@ const PurchaseModal = ({ isOpen, onClose, course, activeOffer }) => {
   const router = useRouter();
   const params = useSearchParams();
 
-
   const agentRefCode = params.get("ref"); // Get the referral code from URL
-   
+
   useEffect(() => {
     if (course?.price) {
       // If there's an active offer, apply it immediately
@@ -46,7 +44,7 @@ const PurchaseModal = ({ isOpen, onClose, course, activeOffer }) => {
       coursePrice = Number(course.price);
     }
   }, [course, activeOffer]); // Run when course or activeOffer updates
-  
+
   useEffect(() => {
     const script = document.createElement("script");
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
@@ -57,6 +55,7 @@ const PurchaseModal = ({ isOpen, onClose, course, activeOffer }) => {
       document.body.removeChild(script);
     };
   }, []);
+
   let coursePrice;
   if (!course) {
     return null;
@@ -91,18 +90,18 @@ const PurchaseModal = ({ isOpen, onClose, course, activeOffer }) => {
 
   const handlePayment = async () => {
     dispatch(setLoading(true));
-    
+
     try {
       // Step 1: Request backend to create order
       const orderResponse = await createOrder({
         userId: user._id,
         courseId: course._id,
-        amount: Math.round(finalPrice * 100), // Convert to smallest currency unitfinalPrice * 100, // Convert to smallest currency unit
+        amount: Math.round(finalPrice * 100), // Convert to smallest currency unit
         agentRefCode: agentRefCode, // Pass the referral code to the backend
         // Only pass the offerId if the offer is valid
         ...(activeOffer && new Date() <= new Date(activeOffer.validUntil) ? { offerId: activeOffer._id } : {})
       });
-     
+
       const orderData = orderResponse.data; // ✅ Extract actual data
 
       if (orderData && orderData.success) {
@@ -112,8 +111,9 @@ const PurchaseModal = ({ isOpen, onClose, course, activeOffer }) => {
           currency: orderData?.data?.currency,
           order_id: orderData?.data?.orderId,
           handler: async function (response) {
+            // This is called by Razorpay after successful payment
             try {
-              await verifyPayment(response);
+              await verifyPayment(response).unwrap(); // ✅ .unwrap() throws on RTK Query error
               toast.success("Payment Successful! Course Access Granted.", {
                 duration: 5000,
                 position: "top-center",
@@ -124,14 +124,27 @@ const PurchaseModal = ({ isOpen, onClose, course, activeOffer }) => {
                   color: "#fff",
                 },
               });
-              handleClose();
-              router.push("/userdashboard"); 
+              handleClose(); // ✅ Close purchase modal
+              router.push("/total-courses"); // ✅ Redirect to My Courses page
             } catch (error) {
-              toast.error("Payment verification failed. Please contact support.", {
-                duration: 5000,
-                position: "top-center",
-              });
-              console.error("Payment verification error:", error);
+              // Handle already-verified payments gracefully (idempotent)
+              if (error?.data?.message === "Payment already verified successfully") {
+                toast.success("Payment already processed. Enjoy your course!", {
+                  duration: 4000,
+                  position: "top-center",
+                });
+                handleClose();
+                router.push("/total-courses");
+              } else {
+                toast.error("Payment verification failed. Please contact support.", {
+                  duration: 5000,
+                  position: "top-center",
+                });
+                console.error("Payment verification error:", error);
+                handleClose(); // ✅ Always close modal even on error to prevent re-triggering
+              }
+            } finally {
+              dispatch(setLoading(false)); // ✅ Always clear loading state
             }
           },
           prefill: {
@@ -141,28 +154,53 @@ const PurchaseModal = ({ isOpen, onClose, course, activeOffer }) => {
           theme: {
             color: "#4F46E5", // blue color to match our UI
           },
+          modal: {
+            ondismiss: () => {
+              // ✅ Clear loading if user dismisses Razorpay popup without paying
+              dispatch(setLoading(false));
+            },
+          },
         };
 
         // Step 3: Open Razorpay Payment Gateway
         const rzp = new window.Razorpay(options);
+        rzp.on("payment.failed", function (response) {
+          // ✅ Handle payment failures reported by Razorpay
+          console.error("Payment failed:", response.error);
+          toast.error("Payment failed. Please try again.", {
+            duration: 4000,
+            position: "top-center",
+          });
+          dispatch(setLoading(false));
+        });
         rzp.open();
+      } else {
+        // Order creation failed — extract error message from response
+        const errorMsg =
+          orderResponse.error?.data?.error ||
+          orderData?.error ||
+          "Failed to create order. Please try again.";
+        toast.error(errorMsg, {
+          duration: 4000,
+          position: "top-center",
+        });
+        dispatch(setLoading(false));
       }
     } catch (error) {
-      console.error("Payment failed:", error);
+      console.error("Payment initialization failed:", error);
       toast.error("Payment initialization failed. Please try again.", {
         duration: 4000,
         position: "top-center",
       });
+      dispatch(setLoading(false));
     }
-
-    dispatch(setLoading(false));
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm dark:bg-black/70">
       <div className="relative w-full md:max-w-5xl max-h-[85vh] overflow-auto md:overflow-hidden rounded-md bg-white shadow-xl dark:bg-gray-900">
         {/* Close button */}
-        <button 
+        <button
           className="absolute right-4 top-4 z-50 rounded-full bg-gray-100 p-2 text-gray-600 transition-all hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
           onClick={handleClose}
         >
@@ -170,7 +208,7 @@ const PurchaseModal = ({ isOpen, onClose, course, activeOffer }) => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
-        
+
         {/* Split panel container */}
         <div className="flex flex-col md:flex-row">
           {/* Left panel (image/course info) */}
@@ -186,25 +224,25 @@ const PurchaseModal = ({ isOpen, onClose, course, activeOffer }) => {
                 <rect width="100%" height="100%" fill="url(#grid-pattern)" />
               </svg>
             </div>
-            
+
             <div className="relative z-10 flex h-full flex-col">
               {/* Course category badge at top */}
               <div className="mb-4 inline-block self-start rounded-md bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-wider text-white/80 backdrop-blur-sm">
                 {course?.category || "Online Course"}
               </div>
-              
+
               {/* Course title */}
               <h1 className="mb-4 text-2xl font-bold tracking-tight text-white md:text-3xl">
                 {course?.title || "Course Title"}
               </h1>
-              
+
               {/* Instructor info */}
               <div className="mb-6 flex items-center space-x-2">
                 <div className="h-8 w-8 overflow-hidden rounded-full bg-white/20">
                   {course?.instructorAvatar ? (
-                    <img 
-                      src={course.instructorAvatar} 
-                      alt={course.instructor} 
+                    <img
+                      src={course.instructorAvatar}
+                      alt={course.instructor}
                       className="h-full w-full object-cover"
                     />
                   ) : (
@@ -217,14 +255,14 @@ const PurchaseModal = ({ isOpen, onClose, course, activeOffer }) => {
                   {course?.instructor || "Instructor"}
                 </p>
               </div>
-              
+
               {/* Course thumbnail with enhanced styling - moved down */}
               <div className="overflow-hidden rounded-md bg-gradient-to-br from-white/20 to-white/5 p-[2px] shadow-lg backdrop-blur-sm">
                 <div className="aspect-video overflow-hidden rounded-md border border-white/10">
                   {course?.thumbnail ? (
-                    <img 
-                      src={course.thumbnail} 
-                      alt={course.title} 
+                    <img
+                      src={course.thumbnail}
+                      alt={course.title}
                       className="h-full w-full object-cover transition-transform duration-700 hover:scale-105"
                     />
                   ) : (
@@ -238,7 +276,7 @@ const PurchaseModal = ({ isOpen, onClose, course, activeOffer }) => {
                   )}
                 </div>
               </div>
-              
+
               {/* Feature highlights - adding content to fill space */}
               <div className="mt-6 grid grid-cols-2 gap-3">
                 <div className="rounded-md bg-white/10 p-3 backdrop-blur-sm">
@@ -249,7 +287,7 @@ const PurchaseModal = ({ isOpen, onClose, course, activeOffer }) => {
                   </div>
                   <p className="text-xs font-medium text-white/80">Certificate Included</p>
                 </div>
-                
+
                 <div className="rounded-md bg-white/10 p-3 backdrop-blur-sm">
                   <div className="mb-1 text-xl text-white">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -259,7 +297,7 @@ const PurchaseModal = ({ isOpen, onClose, course, activeOffer }) => {
                   <p className="text-xs font-medium text-white/80">Lifetime Access</p>
                 </div>
               </div>
-              
+
               {/* Price badge with enhanced styling */}
               <div className="mt-6 rounded-md bg-gradient-to-r from-white/20 to-white/5 p-[1px] backdrop-blur-sm">
                 <div className="rounded-md bg-gradient-to-r from-black/30 to-black/10 px-5 py-3 backdrop-blur-sm">
@@ -287,44 +325,44 @@ const PurchaseModal = ({ isOpen, onClose, course, activeOffer }) => {
                   </div>
                 </div>
               </div>
-              
+
               {/* Enhanced decorative elements */}
               <div className="absolute -bottom-32 -left-16 h-64 w-64 rounded-full bg-blue-700/30 blur-3xl"></div>
               <div className="absolute -right-16 top-32 h-40 w-40 rounded-full bg-blue-700/20 blur-3xl"></div>
               <div className="absolute left-1/2 top-8 h-24 w-24 -translate-x-1/2 rounded-full bg-blue-600/30 blur-2xl"></div>
             </div>
           </div>
-          
+
           {/* Right panel (payment details) */}
           <div className="flex flex-grow flex-col justify-between p-8 text-gray-800 dark:text-white md:w-3/5">
             <div>
               <h1 className="text-2xl font-bold">Complete Your Purchase</h1>
               <p className="mt-1 text-gray-600 dark:text-gray-400">Unlock access to this course in just a few steps</p>
-              
+
               {/* Price summary */}
               <div className="mt-8 rounded-md bg-gray-50 p-6 shadow-sm dark:bg-gray-800/80">
                 <h3 className="mb-4 text-lg font-medium">Order Summary</h3>
-                
+
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-gray-600 dark:text-gray-400">Course Price</span>
                     <span>₹{Number(course?.price || 0).toFixed(2)}</span>
                   </div>
-                  
+
                   {activeOffer && (new Date() <= new Date(activeOffer.validUntil)) && (
                     <div className="flex justify-between text-green-600 dark:text-green-400">
                       <span>Special Offer ({activeOffer.code} - {activeOffer.discountPercentage}% OFF)</span>
                       <span>-₹{(Number(course?.price || 0) * activeOffer.discountPercentage / 100).toFixed(2)}</span>
                     </div>
                   )}
-                  
+
                   {discountApplied && !activeOffer && (
                     <div className="flex justify-between text-green-600 dark:text-green-400">
                       <span>Promo Discount (20%)</span>
                       <span>-₹{(Number(course?.price || 0) * 0.2).toFixed(2)}</span>
                     </div>
                   )}
-                  
+
                   <div className="border-t border-gray-200 pt-3 dark:border-gray-700">
                     <div className="flex justify-between">
                       <span className="text-lg font-medium">Total</span>
@@ -332,8 +370,8 @@ const PurchaseModal = ({ isOpen, onClose, course, activeOffer }) => {
                     </div>
                     {activeOffer && (
                       <p className="mt-2 text-sm text-green-600 dark:text-green-400">
-                        {new Date() <= new Date(activeOffer.validUntil) ? 
-                          `Offer valid until ${new Date(activeOffer.validUntil).toLocaleDateString()}` : 
+                        {new Date() <= new Date(activeOffer.validUntil) ?
+                          `Offer valid until ${new Date(activeOffer.validUntil).toLocaleDateString()}` :
                           <span className="text-red-500 dark:text-red-400">OFFER EXPIRED</span>
                         }
                       </p>
@@ -341,7 +379,7 @@ const PurchaseModal = ({ isOpen, onClose, course, activeOffer }) => {
                   </div>
                 </div>
               </div>
-              
+
               {/* Promo code section */}
               <div className="mt-6">
                 <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -390,7 +428,7 @@ const PurchaseModal = ({ isOpen, onClose, course, activeOffer }) => {
                 )}
               </div>
             </div>
-            
+
             {/* Payment button */}
             <div className="mt-8">
               <Button
@@ -413,7 +451,6 @@ const PurchaseModal = ({ isOpen, onClose, course, activeOffer }) => {
                   </>
                 )}
               </Button>
-              
             </div>
           </div>
         </div>

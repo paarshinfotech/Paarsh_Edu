@@ -67,7 +67,6 @@ offerSchema.pre("validate", function (next) {
 });
 
 // Add indexes for faster queries
-offerSchema.index({ code: 1 });
 offerSchema.index({ validFrom: 1, validUntil: 1 });
 offerSchema.index({ isActive: 1 });
 offerSchema.index({ applicableTo: 1 });
