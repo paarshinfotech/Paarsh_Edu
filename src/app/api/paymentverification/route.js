@@ -68,19 +68,6 @@ export const POST = async (request) => {
     });
 
     if (!transaction) {
-      // Check if this transaction was already processed successfully
-      const existingSuccess = await TransactionModel.findOne({
-        orderId: order_id,
-        status: "SUCCESS",
-      });
-
-      if (existingSuccess) {
-        return NextResponse.json({
-          success: true,
-          message: "Payment already verified successfully",
-        });
-      }
-
       return NextResponse.json(
         { success: false, error: "Invalid or already processed transaction" },
         { status: 404 },
@@ -247,20 +234,14 @@ export const POST = async (request) => {
       }
     );
 
-     // ✅ Send notification in background without blocking response
-    try {
-      notificationHelper.notifyCoursesPurchase({
-        userId,
-        courseId,
-        courseName: course.courseName || course.title || "Course",
-        purchaseAmount: transaction.amount,
-        userName: user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || "Student",
-      }).catch((notifErr) => {
-        console.error("Background notification error:", notifErr);
-      });
-    } catch (notifErr) {
-      console.error("Notification trigger error:", notifErr);
-    }
+     // ✅ Send notification after purchase success
+    await notificationHelper.notifyCoursesPurchase({
+      userId,
+      courseId,
+      courseName: course.title,
+      purchaseAmount: transaction.amount,
+      userName: user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+    });
 
 
     return NextResponse.json({

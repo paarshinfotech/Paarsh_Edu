@@ -180,7 +180,7 @@ export const paarshEduApi = createApi({
         method: "POST",
         body: userData,
       }),
-      // No invalidatesTags — auth data is dispatched manually via setAuthData after signup
+      invalidatesTags: ["User"],
     }),
 
     forgotPassword: builder.mutation({
@@ -502,7 +502,6 @@ export const paarshEduApi = createApi({
         method: "POST",
         body: paymentData,
       }),
-      invalidatesTags: ["Course", "User", "Transaction"],
     }),
 
     grantManualCourseAccess: builder.mutation({

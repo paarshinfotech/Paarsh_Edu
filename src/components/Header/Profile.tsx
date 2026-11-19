@@ -124,7 +124,7 @@ export default function Profile() {
         </div>
       );
     }
-
+    
     return (
       <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-white shadow-md transition-transform hover:scale-105">
         {getUserInitials()}
@@ -190,7 +190,7 @@ export default function Profile() {
 
         {/* Logout Confirmation Dialog */}
         <Dialog open={logoutConfirmOpen} onOpenChange={setLogoutConfirmOpen}>
-          <DialogContent aria-describedby={undefined} className="max-w-md dark:bg-gray-800 dark:text-white">
+          <DialogContent className="max-w-md dark:bg-gray-800 dark:text-white">
             <DialogHeader>
               <DialogTitle className="text-xl font-semibold text-gray-800 dark:text-gray-100">
                 Confirm Logout

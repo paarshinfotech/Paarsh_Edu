@@ -30,25 +30,25 @@ function QuestionBank() {
     data: userData,
     isLoading: isUserLoading,
     error: userError,
-  } = useFetchUserCourseQuery(undefined);
-  const purchasedCourses = userData?.data?.purchasedCourses ?? userData?.purchasedCourses ?? [];
+  } = useFetchUserCourseQuery({});
+  const purchasedCourses = userData?.purchasedCourses || [];
 
   // Fetch practice tests
   const {
     data: practiceTestsData,
     isLoading: isTestsLoading,
     error: testsError,
-  } = useFetchPracticeTestsQuery(undefined);
+  } = useFetchPracticeTestsQuery({});
   const practiceTests: PracticeTest[] = practiceTestsData?.data || [];
 
 
   // Filter practice tests based on purchased courses
   const filteredPracticeTests = practiceTests.filter((test) => {
     const linkedCourseIds = Array.isArray(test.linkedCourses)
-      ? test.linkedCourses.map((course) => String(course?._id || course).trim())
+      ? test.linkedCourses.map((course) => String(course._id).trim())
       : [];
-    const normalizedPurchasedCourses = purchasedCourses.map((item: any) =>
-      String(item?.course?._id || item?.course || item?._id || item).trim()
+    const normalizedPurchasedCourses = purchasedCourses.map((course) =>
+      typeof course === "string" ? String(course).trim() : String(course._id).trim()
     );
     const hasMatch = linkedCourseIds.some((courseId) => {
       const isMatch = normalizedPurchasedCourses.includes(courseId);

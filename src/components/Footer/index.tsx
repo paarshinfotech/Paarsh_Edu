@@ -309,12 +309,12 @@ const Footer = () => {
 
                       {/* Address */}
                       <a
-                        href="https://maps.google.com/?q=Paarsh+Infotech+Business+Plus+505+506+Nashik"
+                        href="https://maps.google.com/?q=Paarsh+Infotech+Pvt+Ltd+Nashik"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-body-color transition duration-300 hover:text-primary dark:text-body-color-dark dark:hover:text-primary"
                       >
-                        Paarsh Infotech Pvt Ltd. Office no 505,06, Business Plus A Wing, near Sai Square, Mumbai Naka, Gaikwad Nagar, Nashik, Maharashtra 422002
+                        Paarsh Infotech Pvt Ltd. Mumbai Naka, Nashik - 422001
                       </a>
                     </div>
                   </li>
@@ -327,7 +327,7 @@ const Footer = () => {
           <div className="py-8 flex justify-between items-center">
             {/* Left Side - Copyright */}
             <p className="text-base text-body-color dark:text-white">
-              &copy; 2025-2026 Paarsh Edu. All rights reserved.
+              &copy; 2024-25 Paarsh Edu. All rights reserved.
             </p>
 
             {/* Right Side - Terms & Privacy Policy */}

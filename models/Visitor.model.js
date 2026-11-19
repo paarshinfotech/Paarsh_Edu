@@ -22,7 +22,7 @@ const visitorSchema = new mongoose.Schema(
     pageUrl: {
       type: String,
       required: true,
-    },
+    },  
     visitTime: {
       type: Date,
       default: Date.now,
@@ -41,6 +41,9 @@ const visitorSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Ensure the TTL index is created
+visitorSchema.index({ visitTime: 1 }, { expireAfterSeconds: 86400 });
 
 const VisitorModel =
   mongoose.models.Visitor || mongoose.model("Visitor", visitorSchema);

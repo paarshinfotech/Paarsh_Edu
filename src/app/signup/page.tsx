@@ -11,6 +11,7 @@ import { selectRootState } from "@/lib/store";
 import { useSignupMutation } from "@/services/api";
 import {
   resetForm,
+  setAuthData,
   setSignupFormData,
 } from "@/lib/slices/userAuthSlice";
 import { toast } from "sonner";
@@ -19,13 +20,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 const SignupPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const dispatch = useDispatch();
   const router = useRouter();
   const signupForm = useSelector(
     (state) => selectRootState(state).userAuth.forms,
   );
-  const [_SIGNUP] = useSignupMutation();
+  const [_SIGNUP, { isLoading, error }] = useSignupMutation();
 
   const param = useSearchParams();
   const ref = param?.get("ref");
@@ -54,7 +54,6 @@ const SignupPage = () => {
     },
     validationSchema: signUpValidationSchema,
     onSubmit: async (values) => {
-      setIsSubmitting(true);
       try {
         const response = await _SIGNUP({
           name: values.name,
@@ -66,27 +65,24 @@ const SignupPage = () => {
         }).unwrap();
 
         if (response?.success) {
-          // Clear any tokens so the user is forced to sign in cleanly on the login page
-          localStorage.removeItem("accessToken");
-          localStorage.removeItem("refreshToken");
-          localStorage.removeItem("userId");
+          const { accessToken, refreshToken, user } = response?.data;
+          localStorage.setItem("accessToken", accessToken);
+          localStorage.setItem("refreshToken", refreshToken);
 
-          toast.success("Account Created Successfully", {
-            description: response?.message || "Please sign in with your email and password.",
+          dispatch(setAuthData({ accessToken, refreshToken, user }));
+          toast.success("Registration Successful", {
+            description: response?.message,
           });
           dispatch(resetForm({ formName: "signupForm" }));
-          setIsSubmitting(false);
-          router.push("/signin");
+          router.push(response?.data?.redirect || `/`);
         } else {
           // This block handles when success is false but no error was thrown
-          setIsSubmitting(false);
           toast.error("Registration Failed", {
             description: response?.error || "An error occurred.",
           });
         }
       } catch (err) {
         console.error("Signup failed:", err);
-        setIsSubmitting(false);
 
         // Handle specific error cases from the backend
         if (err.status === 400) {
@@ -97,7 +93,7 @@ const SignupPage = () => {
               description: "This email is already in use. Please login instead.",
               action: {
                 label: "Login",
-                onClick: () => router.push("/signin")
+                onClick: () => router.push("/login")
               }
             });
             formik.setFieldError("email", "Email already registered");
@@ -333,13 +329,13 @@ const SignupPage = () => {
                     </div>
                     <button
                       type="submit"
-                      disabled={isSubmitting}
-                      className={`mb-4 w-full rounded transition px-6 py-3 shadow-lg text-white ${isSubmitting
+                      disabled={isLoading}
+                      className={`mb-4 w-full rounded transition px-6 py-3 shadow-lg text-white ${isLoading
                           ? "bg-gray-400 cursor-not-allowed"
                           : "bg-blue-600 hover:bg-black"
                         }`}
                     >
-                      {isSubmitting ? "Creating Account..." : "Create Account"}
+                      {isLoading ? "Creating Account..." : "Create Account"}
                     </button>
                   </div>
                 </form>

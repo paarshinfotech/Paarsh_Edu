@@ -1,5 +1,5 @@
 import AdminModel from 'models/Admin.model.js';
-import { notificationQueue, connection } from '../src/lib/queue.js';
+import { notificationQueue } from '../src/lib/queue.js';
 import { NOTIFICATION_TYPES, NOTIFICATION_MESSAGES } from './constant.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -15,15 +15,10 @@ class NotificationHelper {
     metadata = {},
     priority = 'normal'
   }) {
-    // Skip silently if queue or Redis connection is not ready
-    if (!notificationQueue || !connection || connection.status !== 'ready') {
-      console.warn('⚠️  Notification queue unavailable or Redis not ready. Skipping notification.');
-      return { success: false, error: 'Queue unavailable' };
-    }
     try {
       const jobId = `single-${uuidv4()}`;
       
-      const addPromise = notificationQueue.add(
+      await notificationQueue.add(
         'send_single_notification',
         {
           type: 'send_single_notification',
@@ -43,12 +38,6 @@ class NotificationHelper {
         }
       );
 
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Queue timeout')), 1500)
-      );
-
-      await Promise.race([addPromise, timeoutPromise]);
-
       return { success: true, jobId };
     } catch (error) {
       console.error('Error queuing single notification:', error);
@@ -65,15 +54,10 @@ class NotificationHelper {
     excludeUserId = null,
     priority = 'normal'
   }) {
-    // Skip silently if queue or Redis connection is not ready
-    if (!notificationQueue || !connection || connection.status !== 'ready') {
-      console.warn('⚠️  Notification queue unavailable or Redis not ready. Skipping broadcast notification.');
-      return { success: false, error: 'Queue unavailable' };
-    }
     try {
       const jobId = `broadcast-${uuidv4()}`;
       
-      const addPromise = notificationQueue.add(
+      await notificationQueue.add(
         'send_broadcast_notification',
         {
           type: 'send_broadcast_notification',
@@ -91,12 +75,6 @@ class NotificationHelper {
           delay: 0
         }
       );
-
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Queue timeout')), 1500)
-      );
-
-      await Promise.race([addPromise, timeoutPromise]);
 
       return { success: true, jobId };
     } catch (error) {
@@ -254,9 +232,6 @@ class NotificationHelper {
 
   // Get queue stats
   async getQueueStats() {
-    if (!notificationQueue) {
-      return null;
-    }
     try {
       const waiting = await notificationQueue.getWaiting();
       const active = await notificationQueue.getActive();
