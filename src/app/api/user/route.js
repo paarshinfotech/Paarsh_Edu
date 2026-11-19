@@ -3,10 +3,14 @@ import _db from "../../../../utils/db";
 import { authMiddleware } from "../../../../middlewares/auth";
 import UserModel from "../../../../models/User.model";
 import bcrypt from "bcryptjs";
+import { initWorkerIfNeeded } from "../../../lib/server/workerInit";
+
+await _db();
+
+   initWorkerIfNeeded();
 
 export const GET = authMiddleware(async (req) => {
   try {
-    await _db();
     const { user } = req;
 
     if (!user) {
@@ -16,20 +20,14 @@ export const GET = authMiddleware(async (req) => {
       );
     }
 
-    let userData = user;
-    if (user.role === "user" && user._id) {
-      const dbUser = await UserModel.findById(user._id).lean();
-      if (dbUser) {
-        const { password, ...safeUser } = dbUser;
-        userData = { ...safeUser, role: user.role };
-      }
-    }
+    const userId = user._id;
 
-    return NextResponse.json({ success: true, data: userData });
+    const User = await UserModel.findById(userId).exec();
+    return NextResponse.json({ success: true, data: User });
   } catch (error) {
-    console.error("Error fetching user:", error);
+    console.error("Error fetching agents:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Internal server error" },
+      { success: false, error: "Internal server error" },
       { status: 500 },
     );
   }
@@ -37,7 +35,6 @@ export const GET = authMiddleware(async (req) => {
 
 export const PUT = authMiddleware(async (req) => {
   try {
-    await _db();
     const { user } = req;
     const { id, name, email, mobile } = await req.json();
 
@@ -74,7 +71,7 @@ export const PUT = authMiddleware(async (req) => {
   } catch (error) {
     console.error("Error updating user:", error);
     return NextResponse.json(
-      { error: error.message || "Internal server error", success: false },
+      { error: "Internal server error", success: false },
       { status: 500 }
     );
   }
@@ -82,7 +79,6 @@ export const PUT = authMiddleware(async (req) => {
 
 export const DELETE = authMiddleware(async (req) => {
   try {
-    await _db();
     const { user } = req;
     const { email, password } = await req.json();
 
@@ -133,7 +129,7 @@ export const DELETE = authMiddleware(async (req) => {
   } catch (error) {
     console.error("Error deleting user:", error);
     return NextResponse.json(
-      { error: error.message || "Internal server error", success: false },
+      { error: "Internal server error", success: false },
       { status: 500 }
     );
   }

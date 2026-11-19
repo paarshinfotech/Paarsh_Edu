@@ -6,10 +6,13 @@ import _db from "../../../../../utils/db";
 import CourseModel from "../../../../../models/Courses/Course.model";
 import mongoose from "mongoose";
 
+await _db();
+
 // Helper function to convert buffer to ObjectId
 function bufferToObjectId(buffer) {
   if (!buffer || !buffer.data) return null;
   try {
+    // Convert buffer data array to Buffer and then to ObjectId
     const bufferObj = Buffer.from(buffer.data || buffer);
     return new mongoose.Types.ObjectId(bufferObj);
   } catch (error) {
@@ -20,7 +23,6 @@ function bufferToObjectId(buffer) {
 
 export const GET = authMiddleware(async (req) => {
   try {
-    await _db();
     const { user } = req;
 
     if (!user) {
@@ -41,16 +43,16 @@ export const GET = authMiddleware(async (req) => {
     const courseIds = [];
     const purchasedCoursesWithIds = [];
 
-    (existingUser.purchasedCourses || []).forEach((course) => {
+    existingUser.purchasedCourses.forEach((course) => {
       let courseId = null;
       
       // Check if course field exists and is valid
       if (course.course) {
-        if (typeof course.course === 'object' && course.course.data) {
-          courseId = bufferToObjectId(course.course);
-        } else if (course.course._bsontype === 'ObjectID' || mongoose.Types.ObjectId.isValid(course.course)) {
-          courseId = new mongoose.Types.ObjectId(course.course);
-        }
+        courseId = course.course;
+      } 
+      // If course field is missing but buffer exists, try to convert buffer to ObjectId
+      else if (course.buffer) {
+        courseId = bufferToObjectId(course.buffer);
       }
 
       if (courseId) {
@@ -59,39 +61,60 @@ export const GET = authMiddleware(async (req) => {
           ...course.toObject(),
           courseId: courseId
         });
+      } else {
+        console.warn("Could not extract course ID from:", course);
       }
     });
 
-    // Fetch the actual courses using the extracted IDs
-    const courses = await CourseModel.find({
-      _id: { $in: courseIds }
-    });
+    if (courseIds.length === 0) {
+      return NextResponse.json(
+        { purchasedCourses: [] },
+        { status: 200 },
+      );
+    }
 
+    // Fetch course details
+    const courses = await CourseModel.find({ 
+      _id: { $in: courseIds } 
+    }).select("courseName price duration level thumbnail instructor");
+    
+    
     // Create a map for quick lookup
-    const courseMap = {};
-    courses.forEach(course => {
-      courseMap[course._id.toString()] = course;
-    });
+    const courseMap = courses.reduce((map, course) => {
+      map[course._id.toString()] = course;
+      return map;
+    }, {});
+    
+    // Fetch videos for purchased courses
+    const courseVideos = await CourseVideoModel.find({
+      courseId: { $in: courseIds },
+    }).populate("courseId", "courseName");
 
-    // Reconstruct the user object with populated courses
-    const populatedUser = existingUser.toObject();
-    populatedUser.purchasedCourses = purchasedCoursesWithIds.map(purchasedCourse => {
-      const courseDetails = courseMap[purchasedCourse.courseId.toString()];
+
+    // Create response with manual population
+    const purchasedCoursesWithVideos = purchasedCoursesWithIds.map((course) => {
+      const courseDetails = courseMap[course.courseId.toString()];
+      const videos = courseVideos.find(
+        (cv) => String(cv.courseId._id) === String(course.courseId),
+      );
+
       return {
-        ...purchasedCourse,
-        course: courseDetails || null
+        _id: course._id,
+        course: courseDetails || null,
+        purchaseDate: course.purchaseDate,
+        expiryDate: course.expiryDate,
+        isExpired: course.isExpired,
+        videos: videos ? videos.topics : [],
       };
-    }).filter(item => item.course !== null);
-
-    return NextResponse.json({ 
-      success: true, 
-      data: populatedUser 
     });
-  } catch (error) {
-    console.error("Error fetching user courses:", error);
+
     return NextResponse.json(
-      { success: false, error: error.message || "Internal server error" },
-      { status: 500 },
+      { purchasedCourses: purchasedCoursesWithVideos },
+      { status: 200 },
     );
+
+  } catch (error) {
+    console.error("Error fetching purchased courses:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }, ["user"]);

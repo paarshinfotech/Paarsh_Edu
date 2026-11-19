@@ -12,6 +12,8 @@ import AgentModel from "../models/Agent.model";
 import StudentModel from "../models/AptitudeTest/Student.model";
 import _db from "../utils/db";
 
+await _db();
+
 const ROLE_SECRET_MAP = {
   user: JWT_SECRET_USER,
   admin: JWT_SECRET_ADMIN,
@@ -29,7 +31,6 @@ const ROLE_MODEL_MAP = {
 export function authMiddleware(handler, allowedRoles = ["user"]) {
   return async (req, context) => {
     try {
-      await _db();
       let token;
 
       // Check all possible headers for the allowed roles
@@ -90,12 +91,6 @@ export function authMiddleware(handler, allowedRoles = ["user"]) {
       }
 
       const Model = ROLE_MODEL_MAP[role];
-      if (!Model) {
-        return NextResponse.json(
-          { success: false, error: `Invalid role ${role}`, forceLogout: true },
-          { status: 401 },
-        );
-      }
       const user = await Model.findById(decoded.userId).lean();
 
       if (!user) {
@@ -105,7 +100,7 @@ export function authMiddleware(handler, allowedRoles = ["user"]) {
         );
       }
 
-      // 🔥 KEY CHANGE: Check session validity for users
+          // 🔥 KEY CHANGE: Check session validity for users
       if (role === "user") {
         // Get sessionId from token (you need to include this when generating tokens)
         const tokenSessionId = decoded.sessionId;

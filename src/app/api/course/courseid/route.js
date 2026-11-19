@@ -3,11 +3,13 @@ import _db from "../../../../../utils/db";
 import CourseModel from "../../../../../models/Courses/Course.model";
 import OfferModel from "../../../../../models/Offers/Offer.model";
 
+await _db();
+
 export const GET = async (req) => {
   try {
-    await _db();
     const url = new URL(req.url);
     const id = url.searchParams.get("id");
+
 
     if (!id) {
       return NextResponse.json(
@@ -46,9 +48,17 @@ export const GET = async (req) => {
 
     return NextResponse.json({ success: true, data: course });
   } catch (error) {
-    console.error("Error fetching course by id:", error);
+    console.error("Error fetching course:", error.message);
+
+    if (error.name === "CastError") {
+      return NextResponse.json(
+        { success: false, error: "Invalid Course ID" },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
-      { success: false, error: error.message || "Internal server error" },
+      { success: false, error: "Internal server error" },
       { status: 500 }
     );
   }

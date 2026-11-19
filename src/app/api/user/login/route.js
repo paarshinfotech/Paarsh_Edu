@@ -6,9 +6,11 @@ import _db from "../../../../../utils/db";
 import validator from "validator";
 import generateTokens from "../../../../../utils/generateTokens";
 
+
+await _db();
+
 export async function POST(request) {
   try {
-    await _db();
     const { email, password, forceLogin = false } = await request.json();
 
     // Validate input
@@ -97,15 +99,15 @@ export async function POST(request) {
     const { accessToken, refreshToken } = generateTokens(user._id, "user" , sessionId);
 
     // Replace the user.save() section with:
-    await UserModel.findByIdAndUpdate(
-      user._id,
-      {
-        currentSessionId: sessionId,
-        lastLoginAt: new Date(),
-        sessionCreatedAt: new Date()
-      },
-      { runValidators: false }
-    );
+  await UserModel.findByIdAndUpdate(
+    user._id,
+    {
+      currentSessionId: sessionId,
+      lastLoginAt: new Date(),
+      sessionCreatedAt: new Date()
+    },
+    { runValidators: false }
+  );
 
      // Get user data without sensitive fields
     const { password: _, ...userData } = user.toObject();
@@ -118,7 +120,7 @@ export async function POST(request) {
         refreshToken,
         userId: user._id.toString(), // Include userId
         name: user.name,
-        sessionId,
+         sessionId,
         user: userData,
         redirect: "/",
       },
@@ -128,7 +130,7 @@ export async function POST(request) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Internal server error",
+        error: "Internal server error",
       },
       { status: 500 }
     );

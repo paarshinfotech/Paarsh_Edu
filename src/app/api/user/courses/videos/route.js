@@ -5,9 +5,9 @@ import mongoose from "mongoose";
 import UserModel from "models/User.model";
 import CourseVideoModel from "models/Courses/CouresVideo.model";
 
+
 export const GET = authMiddleware(async (req) => {
   try {
-    await _db();
     const { user } = req;
 
     if (!user) {
@@ -30,15 +30,8 @@ export const GET = authMiddleware(async (req) => {
     // Await user data from DB
     const userData = await UserModel.findById(user._id).select("purchasedCourses");
 
-    if (!userData || !userData.purchasedCourses) {
-      return NextResponse.json(
-        { error: "User data not found" },
-        { status: 404 }
-      );
-    }
-
     const purchasedEntry = userData.purchasedCourses.find((entry) =>
-      entry.course && entry.course.toString() === courseId.toString()
+      entry.course.equals(new mongoose.Types.ObjectId(courseId))
     );
 
     if (!purchasedEntry) {
@@ -55,6 +48,7 @@ export const GET = authMiddleware(async (req) => {
       );
     }
 
+
     // Fetch course videos
     const courseVideos = await CourseVideoModel.findOne({ courseId }).populate("courseId");
 
@@ -67,7 +61,6 @@ export const GET = authMiddleware(async (req) => {
       { status: 200 }
     );
   } catch (error) {
-    console.error("Error in user courses videos GET:", error);
-    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }, ["user"]);

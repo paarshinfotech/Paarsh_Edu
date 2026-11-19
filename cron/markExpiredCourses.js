@@ -3,29 +3,25 @@ import UserModel from "../models/User.model.js";
 import _db from "../utils/db.js";
 
 const checkExpiredCourses = async () => {
-  try {
-    await _db(); // ensure DB is connected before running
+  await _db(); // ensure DB is connected before running
 
-    const now = new Date();
-    const users = await UserModel.find();
+  const now = new Date();
+  const users = await UserModel.find();
 
-    for (const user of users) {
-      let updated = false;
+  for (const user of users) {
+    let updated = false;
 
-      (user.purchasedCourses || []).forEach((entry) => {
-        if (!entry.isExpired && entry.expiryDate && new Date(entry.expiryDate) < now) {
-          entry.isExpired = true;
-          updated = true;
-        }
-      });
+    user.purchasedCourses.forEach((entry) => {
+      if (!entry.isExpired && new Date(entry.expiryDate) < now) {
+        entry.isExpired = true;
+        updated = true;
+      }
+    });
 
-      if (updated) await user.save();
-    }
-
-    console.log("Checked and updated expired courses");
-  } catch (error) {
-    console.error("Error in checkExpiredCourses:", error.message);
+    if (updated) await user.save();
   }
+
+  console.log("Checked and updated expired courses");
 };
 
 // Run immediately

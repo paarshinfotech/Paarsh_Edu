@@ -18,9 +18,6 @@ const TrackVisitor = () => {
       return;
     }
 
-    // Store cleanup handles in refs so the synchronous cleanup can access them
-    const cleanupRef = { fn: null };
-
     const trackPageVisit = async () => {
       try {
         sessionIdRef.current = uuidv4();
@@ -40,7 +37,7 @@ const TrackVisitor = () => {
         visitorDataRef.current = {
           sessionId: sessionIdRef.current,
           userId: userId || null,
-          deviceId,
+          deviceId, // Add deviceId
           ipAddress: ip,
           pageUrl: window.location.href,
           userAgent: navigator.userAgent,
@@ -74,13 +71,12 @@ const TrackVisitor = () => {
         document.addEventListener("visibilitychange", handleVisibilityChange);
         router.events?.on("routeChangeStart", handleRouteChange);
 
-        // Store cleanup in the ref so the synchronous useEffect cleanup can call it
-        cleanupRef.fn = () => {
+        return () => {
           clearTimeout(initialTimeout);
           clearInterval(intervalId);
           document.removeEventListener("visibilitychange", handleVisibilityChange);
           router.events?.off("routeChangeStart", handleRouteChange);
-          sendDuration(); // Final update
+          sendDuration(); // Final update120
           startTimeRef.current = null;
         };
       } catch (error) {
@@ -89,16 +85,6 @@ const TrackVisitor = () => {
     };
 
     trackPageVisit();
-
-    // Return cleanup synchronously — React requires this to not be a Promise
-    return () => {
-      if (cleanupRef.fn) {
-        cleanupRef.fn();
-      } else {
-        // If async setup hasn't finished yet, just clear the start time
-        startTimeRef.current = null;
-      }
-    };
   }, [pathname, trackVisitor]);
 
   return null;

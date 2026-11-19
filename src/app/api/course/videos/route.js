@@ -5,18 +5,19 @@ import _db from "../../../../../utils/db";
 import UserModel from "../../../../../models/User.model";
 import mongoose from "mongoose";
 
+await _db();
+
 export const POST = authMiddleware(async (req) => {
   try {
-    await _db();
     const { courseId, courseName, topics } = await req.json();
 
     // Prepare the topics array with correctly named fields, including resourceId
-    const formattedTopics = (topics || []).map((topic) => ({
+    const formattedTopics = topics.map((topic) => ({
       topicName: topic.topicName || topic.name,
-      videos: (topic.videos || []).map((video) => ({
+      videos: topic.videos.map((video) => ({
         videoName: video.videoName || video.name,
         videoId: video.videoId || video.id,
-        resourceId: video.resourceId || null,
+        resourceId: video.resourceId || null, // Include resourceId in the data
         notesId: video.notesId || null,
       })),
     }));
@@ -52,7 +53,6 @@ export const POST = authMiddleware(async (req) => {
 
 export const GET = authMiddleware(async (req) => {
   try {
-    await _db();
     const { user } = req;
 
     if (!user) {

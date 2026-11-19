@@ -1,8 +1,6 @@
 import { Queue } from 'bullmq';
 import redisClient from './redis.js';
 
-export const connection = redisClient;
-
 // Notification Queue
 export const notificationQueue = new Queue('notification-queue', {
   connection: redisClient,
@@ -39,3 +37,6 @@ notificationQueue.on('error', (error) => {
 emailQueue.on('error', (error) => {
   console.error('Email queue error:', error);
 });
+
+
+// export { connection };

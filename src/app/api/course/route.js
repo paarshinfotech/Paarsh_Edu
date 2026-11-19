@@ -1,154 +1,152 @@
-import { NextResponse } from "next/server";
-import _db from "../../../../utils/db";
-import CourseModel from "../../../../models/Courses/Course.model";
-import CourseVideoModel from "../../../../models/Courses/CouresVideo.model";
-import { authMiddleware } from "../../../../middlewares/auth";
-import { uploadBase64ToVPS } from "../../../../utils/uploadfile";
-import notificationHelper from "../../../../utils/notificationHelper";
+  import { NextResponse } from "next/server";
+  import _db from "../../../../utils/db";
+  import CourseModel from "../../../../models/Courses/Course.model";
+  import CourseVideoModel from "../../../../models/Courses/CouresVideo.model";
+  import { authMiddleware } from "../../../../middlewares/auth";
+  import { uploadBase64ToVPS } from "../../../../utils/uploadfile";
+  import notificationHelper from "../../../../utils/notificationHelper";
+  import { initWorkerIfNeeded } from "../../../lib/server/workerInit";
 
-// Add Course
-export const POST = authMiddleware(async (request) => {
-  try {
-    await _db();
-    const { user } = request;
+await _db();
 
-    const {
-      category,
-      subcategory,
-      courseName,
-      duration,
-      price,
-      level,  
-      languages,
-      instructor,
-      thumbnail, // Base64 Image
-      syllabus, // Base64 PDF
-      summaryText,
-      tagline,
-      taglineIncludes,
-      overviewTagline,
-      editorContent,
-      finalText,
-      tagline_in_the_box,
-      videoLink,
-      courseIncludes = [],
-      syllabusOverview = [],
-      thoughts = [],
-      tags = [],
-      availability,
-      certificate = false,
-      featuredCourse = false,
-    } = await request.json();
+    initWorkerIfNeeded();
 
-    // Validate required fields
-    if (
-      !category ||
-      !courseName ||
-      !duration ||
-      !price ||
-      !languages ||
-      !level ||
-      !instructor ||
-      !tagline
-    ) {
-      return NextResponse.json(
-        { success: false, error: "All required fields must be provided" },
-        { status: 400 },
-      );
-    }
+  // Add Course
 
-    const thumbnailUrl = thumbnail
-      ? await uploadBase64ToVPS(thumbnail, "thumbnail")
-      : null;
-    const syllabusUrl = syllabus
-      ? await uploadBase64ToVPS(syllabus, "syllabus")
-      : null;
-    const videoUrl = videoLink
-      ? await uploadBase64ToVPS(videoLink, "videoLink")
-      : null;
-
-    // Create new course
-    const newCourse = new CourseModel({
-      category,
-      subcategory,
-      courseName,
-      duration,
-      price,
-      level,
-      languages,
-      instructor,
-      thumbnail: thumbnailUrl,
-      syllabus: syllabusUrl,
-      summaryText,
-      editorContent,
-      tagline,
-      taglineIncludes,
-      overviewTagline,
-      finalText,
-      tagline_in_the_box,
-      videoLink: videoUrl,
-      courseIncludes,
-      syllabusOverview,
-      thoughts,
-      tags,
-      availability,
-      certificate,
-      featuredCourse,
-    });
-
-    await newCourse.save();
-
-    // Send notification to all users after creation
+  export const POST = authMiddleware(async (request) => {
     try {
-      await notificationHelper.notifyNewCourse({
+
+      const { user } = request;
+
+      const {
+        category,
+        subcategory,
+        courseName,
+        duration,
+        price,
+        level,  
+        languages,
+        instructor,
+        thumbnail, // Base64 Image
+        syllabus, // Base64 PDF
+        summaryText,
+        tagline,
+        taglineIncludes,
+        overviewTagline,
+        editorContent,
+        finalText,
+        tagline_in_the_box,
+        videoLink,
+        courseIncludes = [],
+        syllabusOverview = [],
+        thoughts = [],
+        tags = [],
+        availability,
+        certificate = false,
+        featuredCourse = false,
+      } = await request.json();
+
+      // Validate required fields
+      if (
+        !category ||
+        !courseName ||
+        !duration ||
+        !price ||
+        !languages ||
+        !level ||
+        !instructor ||
+        !tagline
+      ) {
+        return NextResponse.json(
+          { success: false, error: "All required fields must be provided" },
+          { status: 400 },
+        );
+      }
+
+      const thumbnailUrl = thumbnail
+        ? await uploadBase64ToVPS(thumbnail, "thumbnail")
+        : null;
+      const syllabusUrl = syllabus
+        ? await uploadBase64ToVPS(syllabus, "syllabus")
+        : null;
+      const videoUrl = videoLink
+        ? await uploadBase64ToVPS(videoLink, "videoLink")
+        : null;
+
+      
+
+      // Create new course
+      const newCourse = new CourseModel({
+        category,
+        subcategory,
+        courseName,
+        duration,
+        price,
+        level,
+        languages,
+        instructor,
+        thumbnail: thumbnailUrl,
+        syllabus: syllabusUrl,
+        summaryText,
+        editorContent,
+        tagline,
+        taglineIncludes,
+        overviewTagline,
+        finalText,
+        tagline_in_the_box,
+        videoLink: videoUrl,
+        courseIncludes,
+        syllabusOverview,
+        thoughts,
+        tags,
+        availability,
+        certificate,
+        featuredCourse,
+      });
+
+      await newCourse.save();
+
+        // ✅ Send notification to all users after creation
+    const result = await notificationHelper.notifyNewCourse({
         courseName,
         courseId: newCourse._id,
         createdBy: user._id,
       });
-    } catch (notifErr) {
-      console.error("Notification error:", notifErr);
-    }
 
-    return NextResponse.json({
-      success: true,
-      message: "Course created successfully",
-      data: newCourse,
-    });
-  } catch (error) {
-    console.error("Error while creating course:", error);
-    return NextResponse.json(
-      { success: false, error: error.message || "Internal server error" },
-      { status: 500 },
-    );
-  }
-}, ["admin"]);
+      return NextResponse.json({
+        success: true,
+        message: "Course created successfully",
+        data: newCourse,
+      });
+    } catch (error) {
+      console.error("Error while creating course:", error);
+      return NextResponse.json(
+        { success: false, error: "Internal server error" },
+        { status: 500 },
+      );
+    }
+  }, ["admin"]);
 
 //  Get All Courses
 export const GET = async () => {
   try {
-    await _db();
     // Get all courses
     const courses = await CourseModel.find();
     
     // Get all course videos in a single query
     const courseVideos = await CourseVideoModel.find({}, 'courseId topics');
 
-    // Create a map of courseId to lecture count safely
-    const lectureCountMap = (courseVideos || []).reduce((acc, courseVideo) => {
-      const totalLectures = (courseVideo?.topics || []).reduce(
-        (sum, topic) => sum + (Array.isArray(topic?.videos) ? topic.videos.length : 0),
-        0
-      );
-      if (courseVideo?.courseId) {
-        acc[courseVideo.courseId.toString()] = totalLectures;
-      }
+    // Create a map of courseId to lecture count
+    const lectureCountMap = courseVideos.reduce((acc, courseVideo) => {
+      const totalLectures = courseVideo.topics.reduce((sum, topic) => sum + topic.videos.length, 0);
+      acc[courseVideo.courseId.toString()] = totalLectures;
       return acc;
     }, {});
 
-    // Attach lecture count to each course safely
-    const coursesWithLectureCount = (courses || []).map((course) => {
-      const courseObj = typeof course?.toObject === 'function' ? course.toObject() : { ...course };
-      courseObj.lectureCount = course?._id ? (lectureCountMap[course._id.toString()] || 0) : 0;
+    // Attach lecture count to each course
+    const coursesWithLectureCount = courses.map(course => {
+      const courseObj = course.toObject();
+      courseObj.lectureCount = lectureCountMap[course._id.toString()] || 0;
       return courseObj;
     });
 
@@ -156,16 +154,16 @@ export const GET = async () => {
   } catch (error) {
     console.error("Error fetching courses:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Internal server error" },
+      { success: false, error: "Internal server error" },
       { status: 500 },
     );
   }
 };
 
 // Edit Course
+
 export const PUT = authMiddleware(async (request) => {
   try {
-    await _db();
     const { ...updateData } = await request.json();
     const id = updateData?.formData?._id;
 
@@ -239,12 +237,16 @@ export const PUT = authMiddleware(async (request) => {
     const removeOldFileFromVPS = async (oldFileUrl) => {
       if (oldFileUrl) {
         try {
+          // Extract file path from URL
           const filePathMatch = oldFileUrl.match(/\/uploads\/(.+)$/);
           if (filePathMatch && filePathMatch[1]) {
             const filePath = `uploads/${filePathMatch[1]}`;
+            // Call a function to delete the file (you'll need to implement this)
+            await deleteFileFromVPS(filePath);
           }
         } catch (error) {
           console.error("Error removing old file:", error);
+          // Continue with the update even if file removal fails
         }
       }
     };
@@ -253,11 +255,13 @@ export const PUT = authMiddleware(async (request) => {
     let thumbnailUrl = existingCourse.thumbnail;
     if (thumbnail) {
       if (thumbnail.startsWith('data:')) {
+        // If there's a new thumbnail, remove the old one
         if (existingCourse.thumbnail) {
           await removeOldFileFromVPS(existingCourse.thumbnail);
         }
         thumbnailUrl = await uploadBase64ToVPS(thumbnail, "thumbnail");
       } else if (thumbnail !== existingCourse.thumbnail) {
+        // If thumbnail is a URL but different from existing, update it
         thumbnailUrl = thumbnail;
       }
     }
@@ -266,11 +270,13 @@ export const PUT = authMiddleware(async (request) => {
     let syllabusUrl = existingCourse.syllabus;
     if (syllabus) {
       if (syllabus.startsWith('data:')) {
+        // If there's a new syllabus, remove the old one
         if (existingCourse.syllabus) {
           await removeOldFileFromVPS(existingCourse.syllabus);
         }
         syllabusUrl = await uploadBase64ToVPS(syllabus, "syllabus");
       } else if (syllabus !== existingCourse.syllabus) {
+        // If syllabus is a URL but different from existing, update it
         syllabusUrl = syllabus;
       }
     }
@@ -279,11 +285,13 @@ export const PUT = authMiddleware(async (request) => {
     let videoUrl = existingCourse.videoLink;
     if (videoLink) {
       if (videoLink.startsWith('data:')) {
+        // If there's a new video, remove the old one
         if (existingCourse.videoLink) {
           await removeOldFileFromVPS(existingCourse.videoLink);
         }
         videoUrl = await uploadBase64ToVPS(videoLink, "videoLink");
       } else if (videoLink !== existingCourse.videoLink) {
+        // If video link is a URL but different from existing, update it
         videoUrl = videoLink;
       }
     }
@@ -331,16 +339,16 @@ export const PUT = authMiddleware(async (request) => {
   } catch (error) {
     console.error("Error updating course:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Internal server error" },
+      { success: false, error: "Internal server error" },
       { status: 500 },
     );
   }
 }, ["admin"]);
 
 //  Delete Course
+
 export const DELETE = authMiddleware(async (request) => {
   try {
-    await _db();
     const { id } = await request.json();
 
     if (!id) {
@@ -367,7 +375,7 @@ export const DELETE = authMiddleware(async (request) => {
   } catch (error) {
     console.error("Error deleting course:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Internal server error" },
+      { success: false, error: "Internal server error" },
       { status: 500 },
     );
   }
