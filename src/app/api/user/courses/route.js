@@ -6,13 +6,10 @@ import _db from "../../../../../utils/db";
 import CourseModel from "../../../../../models/Courses/Course.model";
 import mongoose from "mongoose";
 
-await _db();
-
 // Helper function to convert buffer to ObjectId
 function bufferToObjectId(buffer) {
   if (!buffer || !buffer.data) return null;
   try {
-    // Convert buffer data array to Buffer and then to ObjectId
     const bufferObj = Buffer.from(buffer.data || buffer);
     return new mongoose.Types.ObjectId(bufferObj);
   } catch (error) {
@@ -23,6 +20,7 @@ function bufferToObjectId(buffer) {
 
 export const GET = authMiddleware(async (req) => {
   try {
+    await _db();
     const { user } = req;
 
     if (!user) {

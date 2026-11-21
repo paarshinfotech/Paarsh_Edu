@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import _db from "../../../../../utils/db";
 import CourseModel from "../../../../../models/Courses/Course.model";
+import CourseVideoModel from "../../../../../models/Courses/CouresVideo.model";
 import OfferModel from "../../../../../models/Offers/Offer.model";
-
-await _db();
 
 export const GET = async (req) => {
   try {
+    await _db();
     const url = new URL(req.url);
     const id = url.searchParams.get("id");
 
@@ -26,6 +26,22 @@ export const GET = async (req) => {
         { success: false, error: "Course not found" },
         { status: 404 }
       );
+    }
+
+    // If course has no direct videoLink, fallback to the first video from CourseVideo topics
+    if (!course.videoLink) {
+      const courseVideos = await CourseVideoModel.findOne({ courseId: id }).lean().exec();
+      if (courseVideos && Array.isArray(courseVideos.topics)) {
+        for (const topic of courseVideos.topics) {
+          if (Array.isArray(topic.videos)) {
+            const firstVid = topic.videos.find((v) => v.videoId && v.videoId.trim());
+            if (firstVid) {
+              course.videoLink = firstVid.videoId;
+              break;
+            }
+          }
+        }
+      }
     }
 
     // Fetch active offers for this course

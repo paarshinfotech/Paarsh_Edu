@@ -7,14 +7,11 @@
   import notificationHelper from "../../../../utils/notificationHelper";
   import { initWorkerIfNeeded } from "../../../lib/server/workerInit";
 
-await _db();
-
-    initWorkerIfNeeded();
-
   // Add Course
 
   export const POST = authMiddleware(async (request) => {
     try {
+      await _db();
 
       const { user } = request;
 
@@ -130,6 +127,7 @@ await _db();
 //  Get All Courses
 export const GET = async () => {
   try {
+    await _db();
     // Get all courses
     const courses = await CourseModel.find();
     
@@ -138,8 +136,10 @@ export const GET = async () => {
 
     // Create a map of courseId to lecture count
     const lectureCountMap = courseVideos.reduce((acc, courseVideo) => {
-      const totalLectures = courseVideo.topics.reduce((sum, topic) => sum + topic.videos.length, 0);
-      acc[courseVideo.courseId.toString()] = totalLectures;
+      const totalLectures = (courseVideo.topics || []).reduce((sum, topic) => sum + (topic.videos?.length || 0), 0);
+      if (courseVideo.courseId) {
+        acc[courseVideo.courseId.toString()] = totalLectures;
+      }
       return acc;
     }, {});
 
@@ -164,6 +164,7 @@ export const GET = async () => {
 
 export const PUT = authMiddleware(async (request) => {
   try {
+    await _db();
     const { ...updateData } = await request.json();
     const id = updateData?.formData?._id;
 
@@ -349,6 +350,7 @@ export const PUT = authMiddleware(async (request) => {
 
 export const DELETE = authMiddleware(async (request) => {
   try {
+    await _db();
     const { id } = await request.json();
 
     if (!id) {

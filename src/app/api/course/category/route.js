@@ -3,13 +3,12 @@ import _db from "../../../../../utils/db";
 import Category from "../../../../../models/Categories/Category.model";
 import { authMiddleware } from "../../../../../middlewares/auth";
 
-await _db();
-
 // Create Category
 
 export const POST = authMiddleware(async (request) => {
   
   try {
+    await _db();
     const { name, description, keywords } = await request.json();
 
     if (!name || !description || !keywords) {
@@ -40,6 +39,7 @@ export const POST = authMiddleware(async (request) => {
 // Get All Categories
 export const GET = async () => {
   try {
+    await _db();
     const categories = await Category.find();
     return NextResponse.json({ success: true, data: categories });
   } catch (error) {

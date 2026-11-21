@@ -3,11 +3,10 @@ import _db from "../../../../../utils/db";
 import Subcategory from "../../../../../models/Categories/SubCategory.model";
 import { authMiddleware } from "../../../../../middlewares/auth";
 
-await _db();
-
 // Create Subcategory
 export const POST = authMiddleware(async (request) => {
   try {
+    await _db();
     const { categoryName, subcategoryName, description, keywords } =
       await request.json();
 
@@ -44,6 +43,7 @@ export const POST = authMiddleware(async (request) => {
 // Get All Subcategories
 export const GET = authMiddleware(async () => {
   try {
+    await _db();
     const subcategories = await Subcategory.find();
     return NextResponse.json({ success: true, data: subcategories });
   } catch (error) {

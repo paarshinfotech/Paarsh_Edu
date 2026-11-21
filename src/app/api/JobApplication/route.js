@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import JobApplicationModel from "../../../../../Paarsh/models/JobApplication/JobApplication.model";
-import _db from "../../../../../Paarsh/utils/db";
+import JobApplicationModel from "../../../../models/JobApplication/JobApplication.model";
+import _db from "../../../../utils/db";
 import notificationHelper from "../../../../utils/notificationHelper";
 
 await _db();
@@ -22,13 +22,13 @@ export async function POST(req) {
 
       await application.save();
 
-        // 2. Trigger admin notification
+      // 2. Trigger admin notification
       await notificationHelper.notifyJobApplication({
-      userId: null, // Not logged-in user, coming from public form
-      userName: fullName,
-      position: desiredRole,
-      applicationId: application._id,
-    });
+        userId: null, // Not logged-in user, coming from public form
+        userName: fullName,
+        position: desiredRole,
+        applicationId: application._id,
+      });
 
       return NextResponse.json({ message: "Application submitted successfully" }, { status: 201 });
     } catch (error) {

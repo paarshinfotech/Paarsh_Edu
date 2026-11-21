@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import CourseVideoModel from "../../../../../models/Courses/CouresVideo.model";
+import CourseModel from "../../../../../models/Courses/Course.model";
 import { authMiddleware } from "../../../../../middlewares/auth";
 import _db from "../../../../../utils/db";
 import UserModel from "../../../../../models/User.model";
 import mongoose from "mongoose";
 
-await _db();
-
 export const POST = authMiddleware(async (req) => {
   try {
+    await _db();
     const { courseId, courseName, topics } = await req.json();
 
     // Prepare the topics array with correctly named fields, including resourceId
@@ -53,6 +53,7 @@ export const POST = authMiddleware(async (req) => {
 
 export const GET = authMiddleware(async (req) => {
   try {
+    await _db();
     const { user } = req;
 
     if (!user) {

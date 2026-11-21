@@ -1,4 +1,4 @@
-import { initSocket } from '../../../Paarsh/src/lib/socket'; // ✅ Adjust if needed
+import { initSocket } from '@/lib/socket';
 
 export default function handler(req, res) {
   if (!res.socket.server.io) {

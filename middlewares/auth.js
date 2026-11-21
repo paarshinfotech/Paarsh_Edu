@@ -12,8 +12,6 @@ import AgentModel from "../models/Agent.model";
 import StudentModel from "../models/AptitudeTest/Student.model";
 import _db from "../utils/db";
 
-await _db();
-
 const ROLE_SECRET_MAP = {
   user: JWT_SECRET_USER,
   admin: JWT_SECRET_ADMIN,
@@ -31,6 +29,7 @@ const ROLE_MODEL_MAP = {
 export function authMiddleware(handler, allowedRoles = ["user"]) {
   return async (req, context) => {
     try {
+      await _db();
       let token;
 
       // Check all possible headers for the allowed roles

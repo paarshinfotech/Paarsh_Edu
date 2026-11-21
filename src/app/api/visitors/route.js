@@ -1,16 +1,21 @@
 import { NextResponse } from "next/server";
 import VisitorModel from "../../../../models/Visitor.model";
+import _db from "../../../../utils/db";
+import mongoose from "mongoose";
 
 export async function POST(request) {
   try {
+    await _db();
     const body = await request.json();
     const { sessionId, userId, deviceId, ipAddress, pageUrl, duration, userAgent, referrer } = body;
+
+    const validUserId = (userId && mongoose.Types.ObjectId.isValid(userId)) ? userId : null;
 
     const visitor = await VisitorModel.findOneAndUpdate(
       { sessionId },
       {
         $set: {
-          userId: userId || null,
+          userId: validUserId,
           deviceId: deviceId || null,
           ipAddress,
           pageUrl,
@@ -41,6 +46,7 @@ export async function POST(request) {
 
 export async function GET() {
   try {
+    await _db();
     const visitors = await VisitorModel.find()
       .populate("userId", "name email")
       .sort({ visitTime: -1 });

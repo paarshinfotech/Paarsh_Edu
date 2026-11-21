@@ -23,6 +23,7 @@ import {
 } from "../../../../services/api";
 import {
   ChevronLeft,
+  AlertCircle,
   Play,
   CheckCircle2,
   Clock,
@@ -162,6 +163,7 @@ export default function CourseLecturePage() {
     pollingInterval: 0, // Disable polling to avoid frequent refetches
   });
 
+  const [videoError, setVideoError] = useState(false);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [currentVideo, setCurrentVideo] = useState<VideoItem | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -196,6 +198,10 @@ export default function CourseLecturePage() {
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackRating, setFeedbackRating] = useState(0);
   const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
+
+  useEffect(() => {
+    setVideoError(false);
+  }, [currentVideo]);
 
 
   const { data: userData } = useFetchUserQuery(undefined);
@@ -802,6 +808,7 @@ export default function CourseLecturePage() {
                   ref={setVideoRef}
                   className="h-full w-full object-cover"
                   src={getVideoUrl(currentVideo)}
+                  onError={() => setVideoError(true)}
                   onTimeUpdate={handleTimeUpdate}
                   onLoadedMetadata={(e) => {
                     const videoElement = e.currentTarget;
@@ -816,6 +823,22 @@ export default function CourseLecturePage() {
                   }}
                   aria-label="Course video player"
                 />
+
+                {videoError && (
+                  <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-gray-900/95 text-white p-6 text-center">
+                    <AlertCircle className="h-12 w-12 text-red-500 mb-3" />
+                    <h3 className="text-lg font-semibold">Video File Not Found on Server (404)</h3>
+                    <p className="text-sm text-gray-300 mt-2 max-w-md">
+                      The video file <strong>{currentVideo?.title}</strong> is missing from the storage server.
+                    </p>
+                    <p className="text-xs text-gray-500 mt-3 break-all max-w-lg bg-gray-800 p-2 rounded border border-gray-700">
+                      {currentVideo?.url}
+                    </p>
+                    <p className="text-xs text-yellow-400 mt-3">
+                      Please upload this video again in the Admin Panel or update its video link.
+                    </p>
+                  </div>
+                )}
 
                 {/* Video Controls Overlay */}
                 <div

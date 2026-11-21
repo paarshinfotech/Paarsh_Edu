@@ -3,11 +3,13 @@ import { authMiddleware } from "../../../../../../middlewares/auth";
 import _db from "../../../../../../utils/db";
 import mongoose from "mongoose";
 import UserModel from "models/User.model";
+import CourseModel from "models/Courses/Course.model";
 import CourseVideoModel from "models/Courses/CouresVideo.model";
-
 
 export const GET = authMiddleware(async (req) => {
   try {
+    await _db();
+
     const { user } = req;
 
     if (!user) {
@@ -27,30 +29,47 @@ export const GET = authMiddleware(async (req) => {
       );
     }
 
-    // Await user data from DB
-    const userData = await UserModel.findById(user._id).select("purchasedCourses");
+    const isAdmin = user.role === "admin";
 
-    const purchasedEntry = userData.purchasedCourses.find((entry) =>
-      entry.course.equals(new mongoose.Types.ObjectId(courseId))
-    );
+    if (!isAdmin) {
+      // Await user data from DB
+      const userData = await UserModel.findById(user._id).select("purchasedCourses");
 
-    if (!purchasedEntry) {
-      return NextResponse.json(
-        { error: "You have not purchased this course" },
-        { status: 403 }
-      );
+      if (!userData) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+
+      const purchasedCourses = userData.purchasedCourses || [];
+      const purchasedEntry = purchasedCourses.find((entry) => {
+        if (!entry) return false;
+        const c = entry.course;
+        if (!c) return false;
+        const idStr = c._id ? c._id.toString() : c.toString ? c.toString() : String(c);
+        return idStr === courseId;
+      });
+
+      if (!purchasedEntry) {
+        return NextResponse.json(
+          { error: "You have not purchased this course" },
+          { status: 403 }
+        );
+      }
+
+      if (purchasedEntry.isExpired) {
+        return NextResponse.json(
+          { error: "Course access has expired" },
+          { status: 403 }
+        );
+      }
     }
-
-    if (purchasedEntry.isExpired) {
-      return NextResponse.json(
-        { error: "Course access has expired" },
-        { status: 403 }
-      );
-    }
-
 
     // Fetch course videos
-    const courseVideos = await CourseVideoModel.findOne({ courseId }).populate("courseId");
+    let courseVideos = await CourseVideoModel.findOne({ courseId }).populate("courseId");
+    if (!courseVideos && mongoose.Types.ObjectId.isValid(courseId)) {
+      courseVideos = await CourseVideoModel.findOne({
+        courseId: new mongoose.Types.ObjectId(courseId),
+      }).populate("courseId");
+    }
 
     if (!courseVideos) {
       return NextResponse.json({ success: false, data: null }, { status: 200 });
@@ -61,6 +80,7 @@ export const GET = authMiddleware(async (req) => {
       { status: 200 }
     );
   } catch (error) {
+    console.error("Error fetching course videos:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-}, ["user"]);
+}, ["user", "admin"]);

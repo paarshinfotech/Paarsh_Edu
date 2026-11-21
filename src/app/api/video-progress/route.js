@@ -4,10 +4,9 @@ import { authMiddleware } from "../../../../middlewares/auth";
 import CourseVideoModel from "../../../../models/Courses/CouresVideo.model";
 import UserProgressModel from "../../../../models/Courses/UserProgress.model";
 
-await _db();
-
 export const POST = authMiddleware(async (request) => {
   try {
+    await _db();
     const { videoId, courseId, progress, completed } = await request.json();
     const userId = request.user._id; // Assuming authMiddleware attaches user info to request
 
@@ -126,6 +125,7 @@ export const POST = authMiddleware(async (request) => {
 
 export const GET = authMiddleware(async (request) => {
   try {
+    await _db();
     const { searchParams } = new URL(request.url);
     const courseId = searchParams.get("courseId");
     const userId = request.user._id; // Assuming authMiddleware attaches user info to request
