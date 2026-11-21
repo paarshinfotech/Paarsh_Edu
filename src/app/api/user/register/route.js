@@ -6,8 +6,6 @@ import validator from "validator";
 import generateTokens from "../../../../../utils/generateTokens";
 import notificationHelper from '../../../../../utils/notificationHelper';
 
-await _db();
-
 // Function to generate a unique referral code
 const generateReferralCode = async (name) => {
   const initials = name.slice(0, 3).toUpperCase();
@@ -24,6 +22,7 @@ const generateReferralCode = async (name) => {
 
 export async function POST(request) {
   try {
+    await _db();
     const { name, email, password, mobile, refferalCode, acceptTerms } =
       await request.json();
 
@@ -48,78 +47,83 @@ export async function POST(request) {
       );
     }
 
-    // Check for existing users
-    const existingUserByEmail = await UserModel.findOne({ email });
-    if (existingUserByEmail) {
+    // Check if user already exists
+    const existingUser = await UserModel.findOne({
+      $or: [{ email }, { mobile }],
+    });
+
+    if (existingUser) {
       return NextResponse.json(
         {
           success: false,
-          error: "Email already registered",
-          redirect: "/signin",
+          error: "User with this email or mobile already exists",
         },
         { status: 400 },
       );
     }
 
-    // Hash the password
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Validate and store referral code (if provided)
-    let referredBy = null;
-    if (refferalCode) {
-      const referringUser = await UserModel.findOne({ refferalCode });
-      if (!referringUser) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Invalid referral code.",
-          },
-          { status: 400 },
-        );
-      }
-      referredBy = referringUser._id; // Store the referring user's ID
-    }
-
-    // Generate a unique referral code for the new user
+    // Generate referral code
     const newReferralCode = await generateReferralCode(name);
 
-    // Create a new user
+    let referredByUser = null;
+
+    if (refferalCode) {
+      referredByUser = await UserModel.findOne({
+        refferalCode: refferalCode.toUpperCase(),
+      });
+    }
+
+    // Create user
     const newUser = new UserModel({
       name,
       email,
       password: hashedPassword,
       mobile,
-      refferalCode: newReferralCode, // Store the new user's referral code
-      referredBy, // Store the ID of the user who referred them (if any)
+      refferalCode: newReferralCode,
+      referredBy: referredByUser ? referredByUser._id : null,
       acceptTerms,
     });
 
     await newUser.save();
 
-    const { accessToken, refreshToken } = generateTokens(newUser._id);
+    // Generate tokens
+    const { accessToken, refreshToken } = generateTokens(newUser._id, "user");
 
-      // Trigger admin notification
-    await notificationHelper.notifyUserRegistration({
-      userId: newUser._id,
-      userName: name,
-      email
-    });
+    // Send notification
+    try {
+      await notificationHelper.notifyUserRegistration({
+        userName: newUser.name,
+        userId: newUser._id,
+        userEmail: newUser.email,
+      });
+    } catch (notifErr) {
+      console.error("Notification error:", notifErr);
+    }
 
     return NextResponse.json({
       success: true,
-      message: "Registered successfully.",
+      message: "User registered successfully",
       data: {
         accessToken,
         refreshToken,
-        redirect: "/",
+        user: {
+          _id: newUser._id,
+          name: newUser.name,
+          email: newUser.email,
+          mobile: newUser.mobile,
+          refferalCode: newUser.refferalCode,
+        },
       },
     });
   } catch (error) {
-    console.error("Error while processing request:", error);
+    console.error("Error in registration:", error);
     return NextResponse.json(
       {
         success: false,
-        error: "Please try again later.",
+        error: error.message || "Internal server error",
       },
       { status: 500 },
     );

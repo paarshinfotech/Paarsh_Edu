@@ -3,13 +3,12 @@ import _db from "../../../../utils/db";
 import PracticeTestModel from "../../../../models/PracticeTest.model";
 import CourseModel from "../../../../models/Courses/Course.model";
 import { authMiddleware } from "../../../../middlewares/auth";
-import mongoose from "mongoose"; // Import mongoose for ObjectId validation
-
-await _db();
+import mongoose from "mongoose";
 
 // Add Practice Test
 export const POST = authMiddleware(async (request) => {
   try {
+    await _db();
     const {
       testName,
       linkedCourses,
@@ -79,6 +78,7 @@ export const POST = authMiddleware(async (request) => {
 // Get Practice Tests (All or by ID)
 export const GET = async (request) => {
   try {
+    await _db();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -111,6 +111,7 @@ export const GET = async (request) => {
 // Edit Practice Test
 export const PUT = authMiddleware(async (request) => {
   try {
+    await _db();
     const {
       _id,
       testName,
@@ -202,6 +203,7 @@ export const PUT = authMiddleware(async (request) => {
 // Delete Practice Test
 export const DELETE = authMiddleware(async (request) => {
   try {
+    await _db();
     const body = await request.json();
     const { id } = body;
 
@@ -213,7 +215,6 @@ export const DELETE = authMiddleware(async (request) => {
       );
     }
 
-    // Validate ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       console.error("Invalid ObjectId format:", id);
       return NextResponse.json(
@@ -231,7 +232,6 @@ export const DELETE = authMiddleware(async (request) => {
       );
     }
 
-    // Update linked courses
     await CourseModel.updateMany(
       { practiceTests: id },
       { $pull: { practiceTests: id } }

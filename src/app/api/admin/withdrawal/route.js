@@ -4,13 +4,12 @@ import _db from "../../../../../utils/db";
 import UserModel from "models/User.model";
 import WithdrawalRequestModel from "models/Withdrawal.model";
 
-await _db();
-
 export const GET = authMiddleware(
   async (req) => {
     try {
+      await _db();
       const withdrawals = await WithdrawalRequestModel.find()
-        .sort({ requestedAt: -1 }) // newest first
+        .sort({ requestedAt: -1 })
         .lean();
 
       return NextResponse.json(
@@ -31,6 +30,7 @@ export const GET = authMiddleware(
 export const PATCH = authMiddleware(
   async (req) => {
     try {
+      await _db();
       const body = await req.json();
       const { id, status, paymentReferenceId } = body;
 
@@ -55,28 +55,26 @@ export const PATCH = authMiddleware(
         );
       }
 
-      // Update withdrawal
+      // Update the status and optional payment reference ID
       withdrawal.status = status;
-      withdrawal.paymentReferenceId = paymentReferenceId || "";
+      if (paymentReferenceId) {
+        withdrawal.paymentReferenceId = paymentReferenceId;
+      }
       withdrawal.processedAt = new Date();
+
       await withdrawal.save();
 
-      // If rejected, refund user
-      if (status === "Rejected") {
-        const user = await UserModel.findById(withdrawal.userId);
-        if (user) {
-          user.walletBalance += withdrawal.amount;
-          await user.save();
-        }
-      }
-
       return NextResponse.json(
-        { message: "Withdrawal request updated", success: true },
+        {
+          message: `Withdrawal request ${status.toLowerCase()} successfully`,
+          data: withdrawal,
+          success: true,
+        },
         { status: 200 },
       );
-    } catch (err) {
-      console.error("PATCH /withdrawal error:", err);
-      return NextResponse.json({ message: "Server error" }, { status: 500 });
+    } catch (error) {
+      console.error("Error updating withdrawal request:", error);
+      return NextResponse.json({ message: "Server Error" }, { status: 500 });
     }
   },
   ["admin"],

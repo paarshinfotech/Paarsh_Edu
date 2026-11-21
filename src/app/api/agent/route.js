@@ -3,11 +3,10 @@ import _db from "../../../../utils/db";
 import AgentModel from "../../../../models/Agent.model";
 import { authMiddleware } from "../../../../middlewares/auth";
 
-await _db();
-
 // Get All Agents
 export const GET = authMiddleware(async (req) => {
   try {
+    await _db();
     const { user } = req;
 
     if (!user) {
@@ -24,7 +23,7 @@ export const GET = authMiddleware(async (req) => {
   } catch (error) {
     console.error("Error fetching agents:", error);
     return NextResponse.json(
-      { success: false, error: "Internal server error" },
+      { success: false, error: error.message || "Internal server error" },
       { status: 500 },
     );
   }
