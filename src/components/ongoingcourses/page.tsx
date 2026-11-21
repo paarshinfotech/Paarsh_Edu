@@ -103,8 +103,8 @@ function OngoingCourse() {
     error: courseError,
     isLoading: isCourseLoading,
     refetch: refetchCourses,
-  } = useFetchUserCourseQuery({});
-  const courses: Course[] = data?.purchasedCourses || [];
+  } = useFetchUserCourseQuery(undefined);
+  const courses: Course[] = data?.data?.purchasedCourses ?? data?.purchasedCourses ?? [];
 
   // Filter ongoing courses (0 < progress < 100)
   const ongoingCourses =

@@ -68,7 +68,9 @@ export default function UserDashboard() {
   const { data: practiceTestsData, isLoading: isLoadingPracticeTests } = useFetchPracticeTestsQuery(undefined);
   const { data: ongoingCourses, isLoading: isLoadingOngoingCourses } = useFetchUserOngoingCoursesQuery(undefined);
   const { data: progressData, isLoading: isLoadingProgress } = useFetchCourseProgressQuery(undefined);
-  const { data: totalCourses, isLoading: isLoadingTotalCourses } = useFetchUserCourseQuery(undefined);
+  const { data: totalCoursesRaw, isLoading: isLoadingTotalCourses } = useFetchUserCourseQuery(undefined);
+  // API returns { success, data: userObject } — purchasedCourses is nested inside data
+  const totalCourses = totalCoursesRaw?.data ?? totalCoursesRaw;
   const { data: userData, isLoading: isLoadingUser } = useFetchUserQuery(undefined);
   const { data: transactions, isLoading: isLoadingTransactions } = useFetchTransactionsQuery(undefined);
 
@@ -76,10 +78,15 @@ export default function UserDashboard() {
   const isLoading = isLoadingPracticeTests || isLoadingOngoingCourses || isLoadingProgress || isLoadingTotalCourses || isLoadingUser || isLoadingTransactions;
 
 
+  const latestPurchasedCourse = totalCourses?.purchasedCourses?.length
+    ? totalCourses.purchasedCourses[totalCourses.purchasedCourses.length - 1]
+    : null;
+
   const latestTransaction = transactions?.data
     ?.filter(
       (transaction) =>
-        transaction?.userId?._id === userData?.data?._id &&
+        (transaction?.userId?._id === userData?.data?._id ||
+          transaction?.userId === userData?.data?._id) &&
         transaction.status === "SUCCESS"
     )
     ?.sort(
@@ -87,9 +94,10 @@ export default function UserDashboard() {
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     )[0];
 
-  const purchaseTime = latestTransaction?.createdAt;
+  const purchaseTime = latestTransaction?.createdAt || latestPurchasedCourse?.purchaseDate;
 
   function timeAgo(date) {
+    if (!date) return "Recently";
     const now = new Date();
     const past = new Date(date);
     const diff = Math.floor((now.getTime() - past.getTime()) / 1000);
@@ -100,11 +108,21 @@ export default function UserDashboard() {
     else return `${Math.floor(diff / 86400)} days ago`;
   }
 
-  const timeSincePurchase = purchaseTime ? timeAgo(purchaseTime) : "Loading...";
+  const timeSincePurchase = purchaseTime
+    ? timeAgo(purchaseTime)
+    : isLoading
+    ? "Loading..."
+    : "No purchases yet";
 
-  const purchasedCourseIds = userData?.data?.purchasedCourses
-    ?.filter((course) => !course.isExpired)
-    ?.map((course) => course.course) || [];
+  const purchasedCourseIds = (
+    totalCourses?.purchasedCourses?.map(
+      (item: any) => item?.course?._id?.toString() || item?.course?.toString()
+    ) ||
+    userData?.data?.purchasedCourses
+      ?.filter((course: any) => !course.isExpired)
+      ?.map((course: any) => course.course?.toString() || course.course?._id?.toString()) ||
+    []
+  ).filter(Boolean);
 
   const availableTests = practiceTestsData?.data?.filter((test) =>
     test.linkedCourses.some((linkedCourse) =>
@@ -236,50 +254,16 @@ export default function UserDashboard() {
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-medium text-gray-800 dark:text-white">
-                  {(() => {
-                    if (timeSincePurchase === "Loading...") {
-                      return "New Course: Loading...";
-                    }
-                    const match = timeSincePurchase.match(/^(\d+)\s+(\w+)\s+ago$/);
-                    if (!match) {
-                      return "New Course: Loading...";
-                    }
-                    const [, value, unit] = match;
-                    const numValue = parseInt(value);
-
-                    // Check if time exceeds 5 days
-                    const isOverFiveDays =
-                      (unit === "days" && numValue > 5) ||
-                      (unit === "hours" && numValue > 5 * 24) ||
-                      (unit === "minutes" && numValue > 5 * 24 * 60) ||
-                      (unit === "seconds" && numValue > 5 * 24 * 60 * 60);
-
-                    return isOverFiveDays
-                      ? "No new course available."
-                      : `New Course: ${totalCourses?.purchasedCourses[totalCourses?.purchasedCourses.length - 1]?.courseName || "Loading..."}`;
-                  })()}
+                  {latestPurchasedCourse
+                    ? `New Course: ${latestPurchasedCourse?.course?.courseName || latestPurchasedCourse?.courseName || "Course"}`
+                    : isLoading
+                    ? "Loading courses..."
+                    : "No courses purchased yet"}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {(() => {
-                    if (timeSincePurchase === "Loading...") {
-                      return "Loading...";
-                    }
-                    const match = timeSincePurchase.match(/^(\d+)\s+(\w+)\s+ago$/);
-                    if (!match) {
-                      return "Loading...";
-                    }
-                    const [, value, unit] = match;
-                    const numValue = parseInt(value);
-
-                    // Check if time exceeds 5 days
-                    const isOverFiveDays =
-                      (unit === "days" && numValue > 5) ||
-                      (unit === "hours" && numValue > 5 * 24) ||
-                      (unit === "minutes" && numValue > 5 * 24 * 60) ||
-                      (unit === "seconds" && numValue > 5 * 24 * 60 * 60);
-
-                    return isOverFiveDays ? "Purchase new course" : timeSincePurchase;
-                  })()}
+                  {latestPurchasedCourse
+                    ? `Purchased ${timeSincePurchase}`
+                    : "Browse our catalog to get started"}
                 </p>
               </div>
             </div>

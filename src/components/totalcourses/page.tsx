@@ -43,15 +43,13 @@ interface PurchasedCourse {
 const SkeletonCard = ({ view }: { view: string }) => {
   return (
     <div
-      className={`flex ${
-        view === "list" ? "flex-row" : "flex-col"
-      } animate-pulse overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800`}
+      className={`flex ${view === "list" ? "flex-row" : "flex-col"
+        } animate-pulse overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800`}
     >
       <div className={`${view === "list" ? "w-1/3" : "w-full"} relative`}>
         <div
-          className={`${
-            view === "list" ? "h-full w-full" : "h-48 w-full"
-          } bg-gray-200 dark:bg-gray-700`}
+          className={`${view === "list" ? "h-full w-full" : "h-48 w-full"
+            } bg-gray-200 dark:bg-gray-700`}
         />
       </div>
       <div className={`${view === "list" ? "w-2/3" : "w-full"} space-y-3 p-4`}>
@@ -77,9 +75,10 @@ function TotalCourses() {
     error: courseError,
     isLoading: isCourseLoading,
     refetch: refetchCourses,
-  } = useFetchUserCourseQuery({});
+  } = useFetchUserCourseQuery(undefined);
 
-  const courses: PurchasedCourse[] = data?.purchasedCourses || [];
+  // API returns { success, data: userObject } — purchasedCourses is nested inside data.data
+  const courses: PurchasedCourse[] = data?.data?.purchasedCourses ?? data?.purchasedCourses ?? [];
 
   const handleStartCourse = (courseId: string) => {
     router.push(`/course-lecture/${courseId}`);
@@ -87,16 +86,22 @@ function TotalCourses() {
 
 
   const getTotalVideoCount = (purchasedCourse: PurchasedCourse) => {
+    if (!purchasedCourse?.videos || !Array.isArray(purchasedCourse.videos)) return 0;
     return purchasedCourse.videos.reduce((total: number, topic: any) => {
       return total + (topic.videos?.length || 0);
     }, 0);
   };
 
   // Filter courses based on search term
-  const filteredCourses = courses.filter((purchasedCourse) =>
-    purchasedCourse.course.courseName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    purchasedCourse.course.instructor.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredCourses = courses.filter((purchasedCourse) => {
+    if (!purchasedCourse?.course) return false;
+    const courseName = purchasedCourse.course.courseName || "";
+    const instructor = purchasedCourse.course.instructor || "";
+    return (
+      courseName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      instructor.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
 
   const container = {
     hidden: { opacity: 0 },
@@ -145,11 +150,11 @@ function TotalCourses() {
   };
 
 
-    // Navigate to course lecture page
+  // Navigate to course lecture page
   const navigateToCourseDetails = (courseId: string) => {
     router.push(`/course-lecture/${courseId}`);
   };
-  
+
   return (
     <div className="space-y-6">
       {/* Header Section */}
@@ -182,22 +187,20 @@ function TotalCourses() {
           <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-1 shadow-sm dark:border-gray-600 dark:bg-gray-700">
             <button
               onClick={() => setView("grid")}
-              className={`rounded-md p-2 transition-all ${
-                view === "grid"
+              className={`rounded-md p-2 transition-all ${view === "grid"
                   ? "bg-blue-500 text-white shadow-md"
                   : "bg-transparent text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
-              }`}
+                }`}
               aria-label="Grid view"
             >
               <Grid3x3 size={18} />
             </button>
             <button
               onClick={() => setView("list")}
-              className={`rounded-md p-2 transition-all ${
-                view === "list"
+              className={`rounded-md p-2 transition-all ${view === "list"
                   ? "bg-blue-500 text-white shadow-md"
                   : "bg-transparent text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
-              }`}
+                }`}
               aria-label="List view"
             >
               <List size={18} />
@@ -209,11 +212,10 @@ function TotalCourses() {
       {/* Main Content */}
       {isCourseLoading ? (
         <div
-          className={`grid ${
-            view === "grid"
+          className={`grid ${view === "grid"
               ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
               : "grid-cols-1"
-          } gap-6`}
+            } gap-6`}
         >
           {[...Array(6)].map((_, index) => (
             <SkeletonCard key={index} view={view} />
@@ -264,7 +266,7 @@ function TotalCourses() {
             {searchTerm ? "No courses found" : "No courses available"}
           </h2>
           <p className="mb-6 max-w-md text-center text-gray-600 dark:text-gray-400">
-            {searchTerm 
+            {searchTerm
               ? `No courses match "${searchTerm}". Try adjusting your search.`
               : "You haven't purchased any courses yet. Browse our catalog to get started!"
             }
@@ -283,22 +285,20 @@ function TotalCourses() {
           variants={container}
           initial="hidden"
           animate="show"
-          className={`grid ${
-            view === "grid"
+          className={`grid ${view === "grid"
               ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
               : "grid-cols-1"
-          } gap-6`}
+            } gap-6`}
         >
-          {filteredCourses.map((purchasedCourse) => (
+          {filteredCourses.map((purchasedCourse, index) => (
             <motion.div
-              key={purchasedCourse.course._id}
+              key={purchasedCourse?.course?._id || purchasedCourse?._id || index}
               variants={item}
-              className={`flex ${
-                view === "list" ? "flex-row" : "flex-col"
-              } overflow-hidden rounded-md border border-gray-100 bg-white shadow-sm transition-all duration-300 hover:border-blue-300 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 dark:hover:border-blue-500`}
+              className={`flex ${view === "list" ? "flex-row" : "flex-col"
+                } overflow-hidden rounded-md border border-gray-100 bg-white shadow-sm transition-all duration-300 hover:border-blue-300 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 dark:hover:border-blue-500`}
               style={{ cursor: "pointer" }}
-               onClick={() => {
-                if (!purchasedCourse.isExpired) {
+              onClick={() => {
+                if (!purchasedCourse.isExpired && purchasedCourse?.course?._id) {
                   navigateToCourseDetails(purchasedCourse.course._id);
                 }
               }}
@@ -306,19 +306,17 @@ function TotalCourses() {
               <div
                 className={`${view === "list" ? "w-1/3" : "w-full"} relative`}
               >
-                {purchasedCourse.course.thumbnail ? (
+                {purchasedCourse?.course?.thumbnail ? (
                   <img
                     src={purchasedCourse.course.thumbnail}
-                    alt={purchasedCourse.course.courseName}
-                    className={`${
-                      view === "list" ? "h-full w-full" : "h-48 w-full"
-                    } object-cover`}
+                    alt={purchasedCourse.course?.courseName || "Course"}
+                    className={`${view === "list" ? "h-full w-full" : "h-48 w-full"
+                      } object-cover`}
                   />
                 ) : (
                   <div
-                    className={`${
-                      view === "list" ? "h-full w-full" : "h-48 w-full"
-                    } flex items-center justify-center bg-gradient-to-r from-blue-400 to-indigo-500`}
+                    className={`${view === "list" ? "h-full w-full" : "h-48 w-full"
+                      } flex items-center justify-center bg-gradient-to-r from-blue-400 to-indigo-500`}
                   >
                     <BookOpen size={48} className="text-white" />
                   </div>
@@ -332,9 +330,9 @@ function TotalCourses() {
                 {/* Level badge */}
                 <div className="absolute right-2 top-2 rounded-full bg-white px-2 py-1 text-xs font-bold shadow-sm dark:bg-gray-800">
                   <span
-                    className={`rounded-full px-2 py-0.5 ${getLevelColor(purchasedCourse.course.level)}`}
+                    className={`rounded-full px-2 py-0.5 ${getLevelColor(purchasedCourse?.course?.level || "All Levels")}`}
                   >
-                    {purchasedCourse.course.level || "All Levels"}
+                    {purchasedCourse?.course?.level || "All Levels"}
                   </span>
                 </div>
 
@@ -348,19 +346,19 @@ function TotalCourses() {
 
               <div className={`${view === "list" ? "w-2/3" : "w-full"} p-4`}>
                 <h3 className="mb-2 line-clamp-2 text-lg font-bold text-gray-900 dark:text-white">
-                  {purchasedCourse.course.courseName}
+                  {purchasedCourse?.course?.courseName || "Course"}
                 </h3>
 
                 {/* Course metadata */}
                 <div className="mb-3 flex flex-wrap gap-2">
                   <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
                     <Users size={12} className="mr-1" />
-                    {purchasedCourse.course.instructor}
+                    {purchasedCourse?.course?.instructor || "Instructor"}
                   </div>
 
                   <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
                     <Clock size={12} className="mr-1" />
-                    {formatDuration(purchasedCourse.course.duration)}
+                    {formatDuration(purchasedCourse?.course?.duration || 1)}
                   </div>
 
                   <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
@@ -379,11 +377,10 @@ function TotalCourses() {
                   {/* <span className="font-semibold text-green-600 dark:text-green-400">
                     ₹{purchasedCourse.course.price}
                   </span> */}
-                  <span className={`text-xs ${
-                    purchasedCourse.isExpired 
-                      ? "text-red-500 dark:text-red-400" 
+                  <span className={`text-xs ${purchasedCourse.isExpired
+                      ? "text-red-500 dark:text-red-400"
                       : "text-gray-500 dark:text-gray-400"
-                  }`}>
+                    }`}>
                     Expires: {formatDate(purchasedCourse.expiryDate)}
                   </span>
                 </div>

@@ -92,15 +92,17 @@ export async function POST(request) {
     // Generate tokens
     const { accessToken, refreshToken } = generateTokens(newUser._id, "user");
 
-    // Send notification
+    // Send notification in background without blocking registration response
     try {
-      await notificationHelper.notifyUserRegistration({
+      notificationHelper.notifyUserRegistration({
         userName: newUser.name,
         userId: newUser._id,
         userEmail: newUser.email,
+      }).catch((notifErr) => {
+        console.error("Background notification error:", notifErr);
       });
     } catch (notifErr) {
-      console.error("Notification error:", notifErr);
+      console.error("Notification launch error:", notifErr);
     }
 
     return NextResponse.json({
@@ -116,6 +118,7 @@ export async function POST(request) {
           mobile: newUser.mobile,
           refferalCode: newUser.refferalCode,
         },
+        redirect: "/signin",
       },
     });
   } catch (error) {
