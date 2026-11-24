@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Menu, Plus, Trash2, ChevronLeft, ChevronRight, Share2 } from "lucide-react";
+import { Menu, Plus, Trash2, ChevronLeft, ChevronRight, Share2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import Sidebar from "@/components/Sidebar/Sidebar";
@@ -36,6 +36,7 @@ import {
   useFetchCollegesQuery,
   useLazyGetTestsQuery,
   useCreateTestMutation,
+  useUpdateTestMutation,
   useDeleteTestMutation,
   useFetchQuestionsQuery,
   useAddQuestionsMutation,
@@ -59,6 +60,9 @@ interface Test {
     passingScore: number;
     allowRetake: boolean;
   };
+  hasExpiry?: boolean;
+  startTime?: string;
+  endTime?: string;
   createdAt: string;
   testLink: string;
   studentCount: number;
@@ -101,6 +105,7 @@ const CreateAptitudeTest = () => {
   // Table state
   const [searchTerm, setSearchTerm] = useState("");
   const [createTestDialogOpen, setCreateTestDialogOpen] = useState(false);
+  const [editTestDialogOpen, setEditTestDialogOpen] = useState(false);
   const [deleteTestDialogOpen, setDeleteTestDialogOpen] = useState(false);
   const [testToDelete, setTestToDelete] = useState<{ testId: string; collegeId: string } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -112,6 +117,22 @@ const CreateAptitudeTest = () => {
     questionsPerTest: "",
     passingScore: "",
     allowRetake: false,
+    hasExpiry: false,
+    startTime: "",
+    endTime: "",
+  });
+  const [editForm, setEditForm] = useState({
+    testId: "",
+    collegeId: "",
+    collegeName: "",
+    batchName: "",
+    testDuration: "",
+    questionsPerTest: "",
+    passingScore: "",
+    allowRetake: false,
+    hasExpiry: false,
+    startTime: "",
+    endTime: "",
   });
   const [allTests, setAllTests] = useState<TestWithCollegeName[]>([]);
   const [isLoadingTests, setIsLoadingTests] = useState(false);
@@ -119,6 +140,7 @@ const CreateAptitudeTest = () => {
   const { data: collegesData, isLoading: isLoadingColleges, error: collegesError } = useFetchCollegesQuery(undefined);
   const [triggerGetTests, { isLoading: isLoadingTestsQuery, error: testsError }] = useLazyGetTestsQuery();
   const [createTest, { isLoading: isCreatingTest }] = useCreateTestMutation();
+  const [updateTest, { isLoading: isUpdatingTest }] = useUpdateTestMutation();
   const [deleteTest, { isLoading: isDeletingTest }] = useDeleteTestMutation();
 
   const colleges = collegesData?.colleges || [];
@@ -186,16 +208,42 @@ const CreateAptitudeTest = () => {
   const allQuestions: ParsedQuestion[] = data?.data || [];
 
   const handleCreateTest = async () => {
-    const { collegeId, batchName, testDuration, questionsPerTest, passingScore, allowRetake } = testForm;
+    const { collegeId, batchName, testDuration, questionsPerTest, passingScore, allowRetake, hasExpiry, startTime, endTime } = testForm;
     if (!collegeId || !batchName || !testDuration || !questionsPerTest || !passingScore) {
       toast.error("Please fill in all required fields");
       return;
     }
+
+    if (hasExpiry) {
+      if (!startTime || !endTime) {
+        toast.error("Please provide both Start Time and End Time");
+        return;
+      }
+      const start = new Date(startTime);
+      const end = new Date(endTime);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        toast.error("Invalid Start Time or End Time");
+        return;
+      }
+      if (end <= start) {
+        toast.error("End Time must be after Start Time");
+        return;
+      }
+      const durationMs = parseInt(testDuration) * 60 * 1000;
+      if (end.getTime() - start.getTime() < durationMs) {
+        toast.error(`End Time must allow at least ${testDuration} minutes duration from Start Time`);
+        return;
+      }
+    }
+
     try {
       const response = await createTest({
         collegeId,
         batchName,
         testDuration: parseInt(testDuration),
+        hasExpiry,
+        startTime: hasExpiry && startTime ? new Date(startTime).toISOString() : undefined,
+        endTime: hasExpiry && endTime ? new Date(endTime).toISOString() : undefined,
         testSettings: {
           questionsPerTest: parseInt(questionsPerTest),
           passingScore: parseInt(passingScore),
@@ -203,7 +251,7 @@ const CreateAptitudeTest = () => {
         },
       }).unwrap();
       setCreateTestDialogOpen(false);
-      setTestForm({ collegeId: "", batchName: "", testDuration: "", questionsPerTest: "", passingScore: "", allowRetake: false });
+      setTestForm({ collegeId: "", batchName: "", testDuration: "", questionsPerTest: "", passingScore: "", allowRetake: false, hasExpiry: false, startTime: "", endTime: "" });
       toast.success(`Test created successfully: ${response.data.testLink}`);
       
       // Refresh tests
@@ -221,6 +269,96 @@ const CreateAptitudeTest = () => {
       })));
     } catch (err: any) {
       toast.error(err?.data?.message || "Failed to create test");
+    }
+  };
+
+  const formatToDateTimeLocal = (dateStr?: string | null) => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const handleOpenEditModal = (test: TestWithCollegeName) => {
+    setEditForm({
+      testId: test.testId,
+      collegeId: test.college,
+      collegeName: test.collegeName,
+      batchName: test.batchName || "",
+      testDuration: test.testDuration?.toString() || "",
+      questionsPerTest: test.testSettings?.questionsPerTest?.toString() || "",
+      passingScore: test.testSettings?.passingScore?.toString() || "",
+      allowRetake: Boolean(test.testSettings?.allowRetake),
+      hasExpiry: Boolean(test.hasExpiry),
+      startTime: formatToDateTimeLocal(test.startTime),
+      endTime: formatToDateTimeLocal(test.endTime),
+    });
+    setEditTestDialogOpen(true);
+  };
+
+  const handleUpdateTest = async () => {
+    const { testId, collegeId, batchName, testDuration, questionsPerTest, passingScore, allowRetake, hasExpiry, startTime, endTime } = editForm;
+    if (!testId || !collegeId || !batchName || !testDuration || !questionsPerTest || !passingScore) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    if (hasExpiry) {
+      if (!startTime || !endTime) {
+        toast.error("Please provide both Start Time and End Time");
+        return;
+      }
+      const start = new Date(startTime);
+      const end = new Date(endTime);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        toast.error("Invalid Start Time or End Time");
+        return;
+      }
+      if (end <= start) {
+        toast.error("End Time must be after Start Time");
+        return;
+      }
+      const durationMs = parseInt(testDuration) * 60 * 1000;
+      if (end.getTime() - start.getTime() < durationMs) {
+        toast.error(`End Time must allow at least ${testDuration} minutes duration from Start Time`);
+        return;
+      }
+    }
+
+    try {
+      await updateTest({
+        testId,
+        collegeId,
+        batchName,
+        testDuration: parseInt(testDuration),
+        hasExpiry,
+        startTime: hasExpiry && startTime ? new Date(startTime).toISOString() : null,
+        endTime: hasExpiry && endTime ? new Date(endTime).toISOString() : null,
+        testSettings: {
+          questionsPerTest: parseInt(questionsPerTest),
+          passingScore: parseInt(passingScore),
+          allowRetake,
+        },
+      }).unwrap();
+
+      setEditTestDialogOpen(false);
+      toast.success("Test updated successfully");
+
+      // Refresh tests
+      const tests = await triggerGetTests({}).unwrap();
+      const collegeMap = colleges.reduce((map, college) => {
+        map[college._id] = college.name;
+        return map;
+      }, {});
+
+      setAllTests(tests.map((test: Test) => ({
+        ...test,
+        studentCount: 0,
+        collegeName: collegeMap[test.college] || "Unknown College",
+      })));
+    } catch (err: any) {
+      toast.error(err?.data?.message || "Failed to update test");
     }
   };
 
@@ -622,7 +760,14 @@ const CreateAptitudeTest = () => {
                             </span>
                           </TableCell>
                           <TableCell>{test.testId}</TableCell>
-                          <TableCell>{test.batchName}</TableCell>
+                          <TableCell>
+                            <div>{test.batchName}</div>
+                            {test.hasExpiry && test.startTime && test.endTime ? (
+                              <div className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+                                🕒 {new Date(test.startTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })} - {new Date(test.endTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                              </div>
+                            ) : null}
+                          </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-center gap-2">
                               <Button
@@ -651,6 +796,20 @@ const CreateAptitudeTest = () => {
                                 />
                                 <span className="absolute -bottom-8 left-1/2 z-10 min-w-max -translate-x-1/2 transform rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 dark:bg-gray-700">
                                   Share test link
+                                </span>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                onClick={() => handleOpenEditModal(test)}
+                                className="group relative h-8 w-8 p-0"
+                                aria-label="Edit test"
+                              >
+                                <Pencil
+                                  size={16}
+                                  className="text-amber-600 transition-transform group-hover:scale-110 dark:text-amber-400"
+                                />
+                                <span className="absolute -bottom-8 left-1/2 z-10 min-w-max -translate-x-1/2 transform rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 dark:bg-gray-700">
+                                  Edit test
                                 </span>
                               </Button>
                               <Button
@@ -684,9 +843,13 @@ const CreateAptitudeTest = () => {
           {/* Create Test Dialog */}
           <Dialog open={createTestDialogOpen} onOpenChange={(open) => {
             setCreateTestDialogOpen(open);
-            if (!open) setTestForm({ collegeId: "", batchName: "", testDuration: "", questionsPerTest: "", passingScore: "", allowRetake: false });
+            if (!open) setTestForm({ collegeId: "", batchName: "", testDuration: "", questionsPerTest: "", passingScore: "", allowRetake: false, hasExpiry: false, startTime: "", endTime: "" });
           }}>
-            <DialogContent className="max-w-md border border-gray-100 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+            <DialogContent
+              onPointerDownOutside={(e) => e.preventDefault()}
+              onInteractOutside={(e) => e.preventDefault()}
+              className="max-h-[90vh] max-w-md overflow-y-auto custom-scrollbar border border-gray-100 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            >
               <DialogHeader>
                 <DialogTitle className="text-xl font-semibold text-gray-900 dark:text-white">
                   Create New Test
@@ -779,6 +942,57 @@ const CreateAptitudeTest = () => {
                     Allow Retake
                   </label>
                 </div>
+                <div className="flex items-center pt-1">
+                  <input
+                    type="checkbox"
+                    id="hasExpiry"
+                    checked={testForm.hasExpiry}
+                    onChange={(e) => setTestForm({ ...testForm, hasExpiry: e.target.checked })}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700/50"
+                  />
+                  <label htmlFor="hasExpiry" className="ml-2 cursor-pointer text-sm font-medium text-gray-900 dark:text-white">
+                    Set Schedule / Expiry (Start & End Time)
+                  </label>
+                </div>
+                {testForm.hasExpiry && (
+                  <div className="space-y-3 rounded-md border border-blue-100 bg-blue-50/50 p-3 dark:border-gray-700 dark:bg-gray-750">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase text-gray-700 dark:text-gray-300">
+                        Start Time
+                      </label>
+                      <Input
+                        type="datetime-local"
+                        value={testForm.startTime}
+                        onChange={(e) => setTestForm({ ...testForm, startTime: e.target.value })}
+                        className="w-full rounded border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                        required={testForm.hasExpiry}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase text-gray-700 dark:text-gray-300">
+                        End Time
+                      </label>
+                      <Input
+                        type="datetime-local"
+                        value={testForm.endTime}
+                        onChange={(e) => setTestForm({ ...testForm, endTime: e.target.value })}
+                        className="w-full rounded border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                        required={testForm.hasExpiry}
+                      />
+                    </div>
+                    {testForm.startTime && testForm.endTime && testForm.testDuration && (
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Last valid start time:{" "}
+                        <span className="font-semibold text-blue-600 dark:text-blue-400">
+                          {new Date(
+                            new Date(testForm.endTime).getTime() -
+                              parseInt(testForm.testDuration || "0") * 60000
+                          ).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
               <DialogFooter className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <Button
@@ -794,6 +1008,168 @@ const CreateAptitudeTest = () => {
                   className="w-full rounded bg-blue-600 px-6 py-3 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 sm:w-auto"
                 >
                   Create Test
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Edit Test Dialog */}
+          <Dialog open={editTestDialogOpen} onOpenChange={setEditTestDialogOpen}>
+            <DialogContent
+              onPointerDownOutside={(e) => e.preventDefault()}
+              onInteractOutside={(e) => e.preventDefault()}
+              className="max-h-[90vh] max-w-md overflow-y-auto custom-scrollbar border border-gray-100 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            >
+              <DialogHeader>
+                <DialogTitle className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Edit Test Details
+                </DialogTitle>
+                <DialogDescription className="text-sm text-gray-600 dark:text-gray-300">
+                  Update test settings, passing score, and schedule.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-900 dark:text-white">
+                    College
+                  </label>
+                  <Input
+                    type="text"
+                    value={editForm.collegeName}
+                    disabled
+                    className="w-full cursor-not-allowed rounded border border-gray-200 bg-gray-100 px-4 py-2.5 text-base text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-900 dark:text-white">
+                    Batch Name
+                  </label>
+                  <Input
+                    type="text"
+                    value={editForm.batchName}
+                    onChange={(e) => setEditForm({ ...editForm, batchName: e.target.value })}
+                    placeholder="Enter batch name"
+                    className="w-full rounded border border-gray-200 bg-gray-50 px-4 py-2.5 text-base focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700/50 dark:text-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-900 dark:text-white">
+                    Test Duration (minutes)
+                  </label>
+                  <Input
+                    type="number"
+                    value={editForm.testDuration}
+                    onChange={(e) => setEditForm({ ...editForm, testDuration: e.target.value })}
+                    placeholder="Enter duration in minutes"
+                    className="w-full rounded border border-gray-200 bg-gray-50 px-4 py-2.5 text-base focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700/50 dark:text-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-900 dark:text-white">
+                    Questions Per Test
+                  </label>
+                  <Input
+                    type="number"
+                    value={editForm.questionsPerTest}
+                    onChange={(e) => setEditForm({ ...editForm, questionsPerTest: e.target.value })}
+                    placeholder="Enter number of questions"
+                    className="w-full rounded border border-gray-200 bg-gray-50 px-4 py-2.5 text-base focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700/50 dark:text-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-900 dark:text-white">
+                    Passing Score (%)
+                  </label>
+                  <Input
+                    type="number"
+                    value={editForm.passingScore}
+                    onChange={(e) => setEditForm({ ...editForm, passingScore: e.target.value })}
+                    placeholder="Enter passing score (e.g. 60)"
+                    className="w-full rounded border border-gray-200 bg-gray-50 px-4 py-2.5 text-base focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700/50 dark:text-white"
+                    required
+                  />
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="editAllowRetake"
+                    checked={editForm.allowRetake}
+                    onChange={(e) => setEditForm({ ...editForm, allowRetake: e.target.checked })}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700/50"
+                  />
+                  <label htmlFor="editAllowRetake" className="ml-2 cursor-pointer text-sm font-medium text-gray-900 dark:text-white">
+                    Allow Retake
+                  </label>
+                </div>
+                <div className="flex items-center pt-1">
+                  <input
+                    type="checkbox"
+                    id="editHasExpiry"
+                    checked={editForm.hasExpiry}
+                    onChange={(e) => setEditForm({ ...editForm, hasExpiry: e.target.checked })}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700/50"
+                  />
+                  <label htmlFor="editHasExpiry" className="ml-2 cursor-pointer text-sm font-medium text-gray-900 dark:text-white">
+                    Set Schedule / Expiry (Start & End Time)
+                  </label>
+                </div>
+                {editForm.hasExpiry && (
+                  <div className="space-y-3 rounded-md border border-blue-100 bg-blue-50/50 p-3 dark:border-gray-700 dark:bg-gray-750">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase text-gray-700 dark:text-gray-300">
+                        Start Time
+                      </label>
+                      <Input
+                        type="datetime-local"
+                        value={editForm.startTime}
+                        onChange={(e) => setEditForm({ ...editForm, startTime: e.target.value })}
+                        className="w-full rounded border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                        required={editForm.hasExpiry}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase text-gray-700 dark:text-gray-300">
+                        End Time
+                      </label>
+                      <Input
+                        type="datetime-local"
+                        value={editForm.endTime}
+                        onChange={(e) => setEditForm({ ...editForm, endTime: e.target.value })}
+                        className="w-full rounded border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                        required={editForm.hasExpiry}
+                      />
+                    </div>
+                    {editForm.startTime && editForm.endTime && editForm.testDuration && (
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Last valid start time:{" "}
+                        <span className="font-semibold text-blue-600 dark:text-blue-400">
+                          {new Date(
+                            new Date(editForm.endTime).getTime() -
+                              parseInt(editForm.testDuration || "0") * 60000
+                          ).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+              <DialogFooter className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setEditTestDialogOpen(false)}
+                  className="w-full rounded border-blue-500 px-6 py-3 text-blue-600 hover:bg-blue-50 dark:border-blue-400 dark:text-blue-400 dark:hover:bg-blue-900/30 sm:w-auto"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleUpdateTest}
+                  disabled={isUpdatingTest}
+                  className="w-full rounded bg-blue-600 px-6 py-3 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 sm:w-auto"
+                >
+                  {isUpdatingTest ? "Saving..." : "Save Changes"}
                 </Button>
               </DialogFooter>
             </DialogContent>

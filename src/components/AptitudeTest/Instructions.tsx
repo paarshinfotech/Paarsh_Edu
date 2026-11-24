@@ -1,8 +1,9 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ArrowRight, Clock, Brain, AlertTriangle, CheckCircle2, XCircle, MousePointer2 } from "lucide-react";
+import { ArrowRight, Clock, Brain, AlertTriangle, CheckCircle2, XCircle, MousePointer2, Calendar } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // Define the TestDetails interface to type the testDetails prop
@@ -13,6 +14,9 @@ interface TestDetails {
   totalQuestions: number;
   passingScore: number;
   allowRetake: boolean;
+  hasExpiry?: boolean;
+  startTime?: string | null;
+  endTime?: string | null;
   instructions: string[];
   rules: string[];
 }
@@ -53,6 +57,13 @@ const InstructionsSkeleton = () => (
 );
 
 export const Instructions: React.FC<InstructionsProps> = ({ testDetails, onStartTest, isLoading }) => {
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   if (isLoading) {
     return (
       <section className="flex h-screen items-center justify-center bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-800 dark:via-gray-850 dark:to-gray-800">
@@ -80,6 +91,16 @@ export const Instructions: React.FC<InstructionsProps> = ({ testDetails, onStart
   const instructions = testDetails.instructions.length > 0 ? testDetails.instructions : defaultInstructions;
   const rules = testDetails.rules.length > 0 ? testDetails.rules : defaultRules;
 
+  const hasExpiry = Boolean(testDetails.hasExpiry && testDetails.startTime && testDetails.endTime);
+  const startDate = hasExpiry && testDetails.startTime ? new Date(testDetails.startTime) : null;
+  const endDate = hasExpiry && testDetails.endTime ? new Date(testDetails.endTime) : null;
+  const durationMs = (testDetails.duration || 0) * 60 * 1000;
+  const cutoffDate = endDate ? new Date(endDate.getTime() - durationMs) : null;
+
+  const isBeforeStart = Boolean(hasExpiry && startDate && currentTime < startDate);
+  const isAfterCutoff = Boolean(hasExpiry && cutoffDate && currentTime > cutoffDate);
+  const isStartBlocked = isBeforeStart || isAfterCutoff;
+
   return (
     <section className="flex h-screen items-center justify-center overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white dark:from-gray-800 dark:via-gray-850 dark:to-gray-800">
       <div className="container mx-auto max-w-5xl px-4">
@@ -91,9 +112,38 @@ export const Instructions: React.FC<InstructionsProps> = ({ testDetails, onStart
             <h1 className="mb-3 text-4xl font-bold text-gray-900 dark:text-white">
               {testDetails.name}
             </h1>
-            <p className="mx-auto mb-6 max-w-2xl text-sm text-gray-600 dark:text-gray-300">
+            <p className="mx-auto mb-4 max-w-2xl text-sm text-gray-600 dark:text-gray-300">
               Conducted by <span className="font-semibold">{testDetails.college}</span>
             </p>
+
+            {hasExpiry && startDate && endDate && cutoffDate && (
+              <div className="mx-auto max-w-2xl rounded-lg border border-blue-200 bg-blue-50/70 p-3 text-center dark:border-blue-800 dark:bg-blue-950/40">
+                <div className="flex flex-wrap items-center justify-center gap-3 text-xs sm:text-sm font-medium text-blue-900 dark:text-blue-200">
+                  <span className="flex items-center gap-1">
+                    <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <strong>Starts:</strong> {startDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                  <span>•</span>
+                  <span>
+                    <strong>Ends:</strong> {endDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                  <span>•</span>
+                  <span>
+                    <strong>Last Entry:</strong> {cutoffDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+                {isBeforeStart && (
+                  <p className="mt-2 text-xs sm:text-sm font-semibold text-amber-700 dark:text-amber-400">
+                    ⏳ Test has not started yet. You will be able to begin at {startDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.
+                  </p>
+                )}
+                {isAfterCutoff && (
+                  <p className="mt-2 text-xs sm:text-sm font-semibold text-red-600 dark:text-red-400">
+                    ⛔ Test entry is closed. To complete the full {testDetails.duration}-minute test before {endDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}, entry was only permitted until {cutoffDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
@@ -163,12 +213,20 @@ export const Instructions: React.FC<InstructionsProps> = ({ testDetails, onStart
           <div className="text-center">
             <Button
               onClick={onStartTest}
-              disabled={isLoading}
-              className="group inline-flex items-center gap-2 rounded bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white transition-all hover:bg-blue-700 hover:shadow-lg dark:bg-blue-500 dark:hover:bg-blue-600"
+              disabled={isLoading || isStartBlocked}
+              className="group inline-flex items-center gap-2 rounded bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white transition-all hover:bg-blue-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
             >
               <span className="flex items-center gap-1">
-                Begin Test
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                {isBeforeStart ? (
+                  `Starts at ${startDate?.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                ) : isAfterCutoff ? (
+                  "Entry Closed"
+                ) : (
+                  <>
+                    Begin Test
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </>
+                )}
               </span>
             </Button>
           </div>

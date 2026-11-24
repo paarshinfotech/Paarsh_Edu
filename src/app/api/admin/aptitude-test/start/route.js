@@ -7,10 +7,9 @@ import QuestionModel from "../../../../../../models/Question.model";
 import _db from "../../../../../../utils/db";
 import { authMiddleware } from "../../../../../../middlewares/auth";
 
-await _db();
-
 export const POST = authMiddleware(async function (request) {
   try {
+    await _db();
     const { sessionId, testId, collegeId } = await request.json();
 
     if (!sessionId || !testId || !collegeId) {
@@ -34,6 +33,34 @@ export const POST = authMiddleware(async function (request) {
         { success: false, error: "Invalid test" },
         { status: 400 }
       );
+    }
+
+    // Validate test schedule if expiry is enabled
+    if (test.hasExpiry) {
+      const now = new Date();
+      const startTime = test.startTime ? new Date(test.startTime) : null;
+      const endTime = test.endTime ? new Date(test.endTime) : null;
+      const durationMs = (test.testDuration || 0) * 60 * 1000;
+
+      if (startTime && now < startTime) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Test has not started yet. It will start at ${startTime.toLocaleString()}`,
+          },
+          { status: 400 }
+        );
+      }
+
+      if (endTime && now.getTime() + durationMs > endTime.getTime()) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Test entry is closed. Full test duration does not fit before end time.",
+          },
+          { status: 400 }
+        );
+      }
     }
 
     const session = await TestSessionModel.findById(sessionId).populate({

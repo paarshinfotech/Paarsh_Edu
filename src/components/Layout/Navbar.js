@@ -44,10 +44,15 @@ const Navbar = () => {
   const socketContext = useContext(SocketContext);
   const { socket, isConnected, tokens } = socketContext || {};
 
+  const isSignInPage = pathname === "/admin/signin";
+
+  // isQueryActive: true only when the query is NOT skipped (i.e., token exists and not on signin page)
+  const isQueryActive = Boolean(tokens?.adminAccessToken) && !isSignInPage;
+
   // Fetch unread notification count
   const { data: unreadCountData, refetch: refetchUnreadCount } =
     useFetchAdminUnreadNotificationCountQuery(undefined, {
-       skip: !tokens?.adminAccessToken,
+       skip: !isQueryActive,
        refetchOnMountOrArgChange: true,
     });
 
@@ -60,7 +65,7 @@ const Navbar = () => {
       limit: 10,
       ...(filter !== 'all' && { isRead: filter === 'read' ? true : false }),
     },
-    { skip: !notificationOpen }
+    { skip: !notificationOpen || isSignInPage }
   );
 
   const notifications = data?.data?.notifications || [];
@@ -94,7 +99,7 @@ const Navbar = () => {
 
     const handleNotification = (notification) => {
       setAnimateBell(true);
-      refetchUnreadCount();
+      if (isQueryActive) refetchUnreadCount();
       playNotificationSound();
 
       if (Notification.permission === 'granted') {
@@ -117,7 +122,7 @@ const Navbar = () => {
   // Refetch on tab visibility
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && isQueryActive) {
         refetchUnreadCount();
       }
     };
@@ -227,7 +232,7 @@ const Navbar = () => {
   const markAsRead = async (notificationId) => {
     try {
       await markNotificationAsRead(notificationId).unwrap();
-      refetchUnreadCount();
+      if (isQueryActive) refetchUnreadCount();
       refetch();
     } catch (error) {
       console.error('Error marking notification as read:', error);
@@ -237,7 +242,7 @@ const Navbar = () => {
   const markAllAsRead = async () => {
     try {
       await markNotificationAsRead({ markAll: true }).unwrap();
-      refetchUnreadCount();
+      if (isQueryActive) refetchUnreadCount();
       refetch();
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
@@ -562,25 +567,11 @@ const Navbar = () => {
           aria-label="Logout"
         >
           <FiLogOut size={16} />
-          <span className="hidden text-sm font-medium sm:block">Logout</span>
+          <span className="text-sm font-medium">Logout</span>
         </motion.button>
       </div>
 
-      {/* Connection Status (Development Only) */}
-      {process.env.NODE_ENV === 'development' && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className={`fixed bottom-4 right-4 rounded-full px-3 py-1 text-xs font-medium text-white shadow-lg backdrop-blur-sm ${
-            isConnected ? 'bg-green-500/90' : 'bg-red-500/90'
-          }`}
-        >
-          <div className="flex items-center space-x-1">
-            <div className={`h-2 w-2 rounded-full ${isConnected ? 'bg-green-200' : 'bg-red-200'} animate-pulse`}></div>
-            <span>{isConnected ? 'Connected' : 'Disconnected'}</span>
-          </div>
-        </motion.div>
-      )}
+
 
       {/* Enhanced Logout Confirmation Dialog */}
       <Dialog open={logoutConfirmOpen} onOpenChange={setLogoutConfirmOpen}>

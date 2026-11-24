@@ -36,13 +36,27 @@ export const GET = authMiddleware(async function (request) {
       );
     }
 
+    // Get college and test details
+    const college = await CollegeModel.findById(collegeId);
+    const test = await TestModel.findOne({ testId, college: collegeId });
+
+    const passingScore = Number(
+      test?.testSettings?.passingScore ??
+      test?.testSettings?.passingPercentage ??
+      session.passingPercentage ??
+      60
+    );
+
     const testDetails = {
-      name: "Aptitude Test",
-      college: "Test College",
-      duration: session.duration,
-      totalQuestions: session.questions.length,
-      passingScore: 60,
-      allowRetake: false,
+      name: `Aptitude Test${college?.name ? ` - ${college.name}` : ""}`,
+      college: college?.name || "College",
+      duration: test?.testDuration || session.duration,
+      totalQuestions: test?.testSettings?.questionsPerTest || session.questions.length,
+      passingScore: passingScore,
+      allowRetake: Boolean(test?.testSettings?.allowRetake),
+      hasExpiry: Boolean(test?.hasExpiry),
+      startTime: test?.startTime || null,
+      endTime: test?.endTime || null,
       instructions: [
         "Read each question carefully.",
         "Navigate using the provided controls.",

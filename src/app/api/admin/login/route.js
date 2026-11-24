@@ -59,9 +59,18 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       message: "Login successful",
+      admin_access_token: accessToken,
+      admin_refresh_token: refreshToken,
+      accessToken,
+      refreshToken,
+      role,
+      user: userData,
+      redirectTo,
       data: {
         accessToken,
         refreshToken,
+        admin_access_token: accessToken,
+        admin_refresh_token: refreshToken,
         role,
         user: userData,
         redirectTo,

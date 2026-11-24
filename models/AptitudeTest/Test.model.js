@@ -5,6 +5,9 @@ const testSchema = new mongoose.Schema({
   college: { type: mongoose.Schema.Types.ObjectId, ref: "College", required: true },
   batchName: { type: String, required: true, trim: true },
   testDuration: { type: Number, required: true },
+  hasExpiry: { type: Boolean, default: false },
+  startTime: { type: Date },
+  endTime: { type: Date },
   testSettings: {
     questionsPerTest: { type: Number, required: true },
     passingScore: { type: Number, required: true },

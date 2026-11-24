@@ -36,14 +36,30 @@ export async function POST(request, { params }) {
       return acc;
     }, {});
 
+    // Find parent test to resolve configured passing score
+    const TestModel = (await import("../../../../../../../models/AptitudeTest/Test.model")).default;
+    const testDoc = session.test
+      ? await TestModel.findById(session.test).lean()
+      : await TestModel.findOne({ testId: session.testId }).lean();
+
+    const passingScore = Number(
+      testDoc?.testSettings?.passingScore ??
+      testDoc?.testSettings?.passingPercentage ??
+      session.passingPercentage ??
+      40
+    );
+
     // Calculate score
-    const result = calculateScore(session.questions, answersMap);
+    const result = calculateScore(session.questions, answersMap, passingScore);
 
     // Update session with results
     session.score = result.score;
     session.percentage = result.percentage;
     session.answers = answers;
     session.status = "completed";
+    session.passingPercentage = passingScore;
+    session.markModified('passingPercentage');
+    session.isPassed = result.isPassed;
     session.submittedAt = new Date();
 
     await session.save();

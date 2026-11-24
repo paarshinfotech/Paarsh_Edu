@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import Sidebar from "@/components/Sidebar/Sidebar";
-import Navbar from "@/components/Navbar/Navbar";
 import { useTheme } from "next-themes";
 import {
   Users,
@@ -682,12 +681,7 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="flex h-screen w-full flex-col overflow-hidden bg-gray-50 dark:bg-gray-900">
-      {/* Navbar */}
-      <div className="z-10 w-full">
-        <Navbar />
-      </div>
-
+    <div className="flex h-screen w-full flex-col overflow-hidden bg-gray-50 dark:bg-gray-900 pt-16">
       {/* Mobile Sidebar Toggle - Fixed position with better visibility */}
       <div className="fixed left-0 top-0 z-[100] flex h-16 w-16 items-center justify-center md:hidden">
         <Button

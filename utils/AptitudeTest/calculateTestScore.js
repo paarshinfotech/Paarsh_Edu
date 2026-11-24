@@ -1,8 +1,8 @@
 // lib/scoreUtils.js
-export const calculateScore = (questions, answers, passingPercentage = 40) => {
+export const calculateScore = (questions, answers, passingPercentage) => {
   let score = 0;
   let totalQuestions = questions.length;
-  
+
   // Create a map of questionId to answer for easier lookup
   const answerMap = answers.reduce((map, answer) => {
     map[answer.questionId] = {
@@ -15,7 +15,7 @@ export const calculateScore = (questions, answers, passingPercentage = 40) => {
   const correctedAnswers = questions.map((q) => {
     const question = q.question; // Access the populated question object
     const studentAnswer = answerMap[question._id.toString()]; // Get answer from map
-    
+
     // Find the correct answer from options
     const correctOption = question.options.findIndex(opt => opt.text === question.correctAnswer);
     const isCorrect = studentAnswer && studentAnswer.selectedAnswer === correctOption;

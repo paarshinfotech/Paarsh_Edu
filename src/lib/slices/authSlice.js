@@ -15,25 +15,43 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     setAdminAuthData(state, action) {
-      state.adminAccessToken = action.payload.adminAccessToken;
-      state.adminRefreshToken = action.payload.adminRefreshToken;
-      state.admin = action.payload.admin;
-      state.userRole = action.payload.userRole;
-      state.isAdminAuthenticated = true;
+      const accessToken = action.payload.adminAccessToken || action.payload.admin_access_token;
+      const refreshToken = action.payload.adminRefreshToken || action.payload.admin_refresh_token;
+      const admin = action.payload.admin || action.payload.user;
+      const userRole = action.payload.userRole || action.payload.role;
+
+      state.adminAccessToken = accessToken;
+      state.adminRefreshToken = refreshToken;
+      state.admin = admin;
+      state.userRole = userRole;
+      state.isAdminAuthenticated = Boolean(accessToken);
       state.error = null;
 
-      if (typeof window !== "undefined") {
-        localStorage.setItem("admin_access_token", action.payload.adminAccessToken);
-        localStorage.setItem("admin_refresh_token", action.payload.adminRefreshToken);
+      if (typeof window !== "undefined" && accessToken) {
+        localStorage.setItem("admin_access_token", accessToken);
+        if (refreshToken) {
+          localStorage.setItem("admin_refresh_token", refreshToken);
+        }
       }
     },
     updateAdminTokens(state, action) {
-      state.adminAccessToken = action.payload.adminAccessToken;
-      state.adminRefreshToken = action.payload.adminRefreshToken;
+      const accessToken =
+        action.payload.adminAccessToken ||
+        action.payload.admin_access_token ||
+        action.payload.accessToken;
+      const refreshToken =
+        action.payload.adminRefreshToken ||
+        action.payload.admin_refresh_token ||
+        action.payload.refreshToken;
 
-      if (typeof window !== "undefined") {
-        localStorage.setItem("admin_access_token", action.payload.adminAccessToken);
-        localStorage.setItem("admin_refresh_token", action.payload.adminRefreshToken);
+      state.adminAccessToken = accessToken;
+      state.adminRefreshToken = refreshToken;
+
+      if (typeof window !== "undefined" && accessToken) {
+        localStorage.setItem("admin_access_token", accessToken);
+        if (refreshToken) {
+          localStorage.setItem("admin_refresh_token", refreshToken);
+        }
       }
     },
     logoutAdmin(state) {

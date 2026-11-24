@@ -46,6 +46,9 @@ interface TestDetails {
   totalQuestions: number;
   passingScore: number;
   allowRetake: boolean;
+  hasExpiry?: boolean;
+  startTime?: string | null;
+  endTime?: string | null;
   instructions: string[];
   rules: string[];
 }

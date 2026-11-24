@@ -13,13 +13,13 @@ const baseQuery = fetchBaseQuery({
     const adminAccessToken = localStorage.getItem("admin_access_token");
     const studentAccessToken = localStorage.getItem("student_access_token");
 
-    if (accessToken) {
+    if (accessToken && accessToken !== "undefined" && accessToken !== "null") {
       headers.set("Authorization", `Bearer ${accessToken}`);
     }
-    if (adminAccessToken) {
+    if (adminAccessToken && adminAccessToken !== "undefined" && adminAccessToken !== "null") {
       headers.set("Admin-Authorization", `Bearer ${adminAccessToken}`);
     }
-    if (studentAccessToken) {
+    if (studentAccessToken && studentAccessToken !== "undefined" && studentAccessToken !== "null") {
       headers.set("Student-Authorization", `Bearer ${studentAccessToken}`);
     }
 
@@ -35,8 +35,14 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
   const { adminRefreshToken, isAdminAuthenticated } = auth;
 
   if (result.error?.status === 401) {
+    const urlStr = typeof args === "string" ? args : args?.url || "";
+    const isAuthEndpoint = urlStr.includes("login") || urlStr.includes("signin") || urlStr.includes("refreshtoken");
+    if (isAuthEndpoint) {
+      return result;
+    }
+
     const isAdminRequest =
-      (typeof args.url === "string" && args.url.startsWith("/admin")) ||
+      urlStr.startsWith("/admin") ||
       result.error?.data?.error?.includes("admin");
 
     const refreshTokenToUse = isAdminRequest ? adminRefreshToken : refreshToken;
@@ -47,6 +53,11 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
       ? updateAdminTokens
       : updateTokens;
     const logoutAction = isAdminRequest ? logoutAdmin : logout;
+
+    if (!refreshTokenToUse) {
+      api.dispatch(logoutAction());
+      return result;
+    }
 
     if (tokenRefreshing) {
       return new Promise((resolve) => {
@@ -1405,6 +1416,17 @@ export const paarshEduApi = createApi({
       }),
     }),
 
+    updateTest: builder.mutation({
+      query: (testData) => ({
+        url: '/admin/aptitude-test/colleges/test',
+        method: 'PUT',
+        body: testData,
+      }),
+      invalidatesTags: (result, error, { collegeId }) => [
+        { type: 'Tests', id: collegeId },
+      ],
+    }),
+
     getTestInfo: builder.query({
       query: ({ sessionId, testId, collegeId }) =>
         `/admin/aptitude-test?sessionId=${sessionId}&testId=${testId}&collegeId=${collegeId}`,
@@ -1636,6 +1658,7 @@ export const {
   useGetTestInfoQuery,
   useGetTestInstructionQuery,
   useCreateTestMutation,
+  useUpdateTestMutation,
   useLazyGetTestsQuery,
   useGetTestsQuery,
   useGetTestByCollegeIdQuery,

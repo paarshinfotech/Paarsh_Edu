@@ -8,10 +8,9 @@ import QuestionModel from "../../../../../../models/Question.model";
 import _db from "../../../../../../utils/db";
 import { authMiddleware } from "../../../../../../middlewares/auth";
 
-await _db();
-
 export const POST = authMiddleware(async function (request) {
   try {
+    await _db();
     const { studentId, testId, collegeId, batchName } = await request.json();
 
     if (!studentId || !testId || !collegeId , !batchName) {
@@ -35,6 +34,34 @@ export const POST = authMiddleware(async function (request) {
         { success: false, error: "Invalid test" },
         { status: 400 }
       );
+    }
+
+    // Validate test schedule if expiry is enabled
+    if (test.hasExpiry) {
+      const now = new Date();
+      const startTime = test.startTime ? new Date(test.startTime) : null;
+      const endTime = test.endTime ? new Date(test.endTime) : null;
+      const durationMs = (test.testDuration || 0) * 60 * 1000;
+
+      if (startTime && now < startTime) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Test has not started yet. It will start at ${startTime.toLocaleString()}`,
+          },
+          { status: 400 }
+        );
+      }
+
+      if (endTime && now.getTime() + durationMs > endTime.getTime()) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Test entry is closed. Full test duration does not fit before end time.",
+          },
+          { status: 400 }
+        );
+      }
     }
 
     const student = await StudentModel.findById(studentId);
@@ -88,6 +115,15 @@ export const POST = authMiddleware(async function (request) {
       );
     }
 
+    const testDocObj = typeof test.toObject === 'function' ? test.toObject() : test;
+    const testPassingScore = Number(
+      testDocObj.testSettings?.passingScore ??
+      testDocObj.testSettings?.passingPercentage ??
+      test.testSettings?.passingScore ??
+      test.testSettings?.passingPercentage ??
+      40
+    );
+
     const session = new TestSessionModel({
       student: studentId,
       college: collegeId,
@@ -96,7 +132,7 @@ export const POST = authMiddleware(async function (request) {
       test: test._id,
       duration: test.testDuration,
       status: "pending",
-      passingPercentage: test.testSettings.passingPercentage,
+      passingPercentage: testPassingScore,
       questions: questions.map((q) => ({
         question: q._id,
         selectedAnswer: -1,
@@ -107,6 +143,7 @@ export const POST = authMiddleware(async function (request) {
       userAgent: request.headers.get("user-agent") || "unknown",
       browserInfo: { name: "unknown", version: "unknown", platform: "unknown" },
     });
+    session.markModified('passingPercentage');
     await session.save();
 
     return NextResponse.json({

@@ -5,10 +5,9 @@ import TestSessionModel from "../../../../../../models/AptitudeTest/TestSession.
 import _db from "../../../../../../utils/db";
 import { authMiddleware } from "../../../../../../middlewares/auth";
 
-await _db();
-
 export const GET = authMiddleware(async function (request) {
   try {
+    await _db();
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get("sessionId");
     const testId = searchParams.get("testId");
@@ -59,6 +58,9 @@ export const GET = authMiddleware(async function (request) {
       totalQuestions: test.testSettings.questionsPerTest,
       passingScore: test.testSettings.passingScore,
       allowRetake: test.testSettings.allowRetake,
+      hasExpiry: Boolean(test.hasExpiry),
+      startTime: test.startTime || null,
+      endTime: test.endTime || null,
       instructions: [
         "Read each question carefully.",
         "Navigate using the provided controls.",

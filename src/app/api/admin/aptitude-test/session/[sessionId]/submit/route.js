@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import TestSession from '../../../../../../../../models/AptitudeTest/TestSession.model';
 import Student from '../../../../../../../../models/AptitudeTest/Student.model';
 import Question from '../../../../../../../../models/Question.model';
+import Test from '../../../../../../../../models/AptitudeTest/Test.model';
 import { calculateScore } from '../../../../../../../../utils/AptitudeTest/calculateTestScore';
 import _db from '../../../../../../../../utils/db';
 
@@ -25,12 +26,14 @@ export async function POST(request) {
       );
     }
 
-    // Find the test session and populate questions with full question details
-    const session = await TestSession.findById(sessionId).populate({
-      path: 'questions.question',
-      model: Question,
-      select: 'question options correctAnswer explanation'
-    });
+    // Find the test session and populate questions with full question details and populate parent test
+    const session = await TestSession.findById(sessionId)
+      .populate({
+        path: 'questions.question',
+        model: Question,
+        select: 'question options correctAnswer explanation'
+      })
+      .populate('test');
 
     if (!session) {
       return NextResponse.json(
@@ -45,6 +48,35 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+
+    // Resolve passing percentage from parent test configuration
+    let passingPercentage = null;
+
+    // 1. Check directly from populated parent test
+    if (session.test && typeof session.test === 'object' && session.test.testSettings?.passingScore !== undefined) {
+      passingPercentage = Number(session.test.testSettings.passingScore);
+    }
+
+    // 2. If not found from populated test, look up Test by unique testId or ObjectId
+    if (passingPercentage === null || isNaN(passingPercentage)) {
+      const testDoc = (session.testId ? await Test.findOne({ testId: session.testId }).lean() : null)
+        || (session.test ? await Test.findById(session.test._id || session.test).lean() : null);
+
+      if (testDoc?.testSettings?.passingScore !== undefined && testDoc?.testSettings?.passingScore !== null) {
+        passingPercentage = Number(testDoc.testSettings.passingScore);
+      } else if (testDoc?.testSettings?.passingPercentage !== undefined && testDoc?.testSettings?.passingPercentage !== null) {
+        passingPercentage = Number(testDoc.testSettings.passingPercentage);
+      }
+    }
+
+    // 3. Fallback to existing session passingPercentage only if test could not be found
+    if (passingPercentage === null || isNaN(passingPercentage)) {
+      passingPercentage = Number(session.passingPercentage || 40);
+    }
+
+    // Ensure session record saves the exact passing score from the test
+    session.passingPercentage = passingPercentage;
+    session.markModified('passingPercentage');
 
     // Calculate score using the updated calculateScore function
     const { score, percentage, correctedAnswers, isPassed } = calculateScore(

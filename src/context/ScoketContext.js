@@ -23,8 +23,17 @@ export const SocketProvider = ({ children }) => {
     if (typeof window === 'undefined') return;
 
     const interval = setInterval(() => {
-      const accessToken = localStorage.getItem('accessToken');
-      const adminAccessToken = localStorage.getItem('admin_access_token');
+      let accessToken = localStorage.getItem('accessToken');
+      let adminAccessToken = localStorage.getItem('admin_access_token');
+
+      if (accessToken === 'undefined' || accessToken === 'null') {
+        localStorage.removeItem('accessToken');
+        accessToken = null;
+      }
+      if (adminAccessToken === 'undefined' || adminAccessToken === 'null') {
+        localStorage.removeItem('admin_access_token');
+        adminAccessToken = null;
+      }
 
       if (accessToken || adminAccessToken) {
         setTokens({ accessToken, adminAccessToken });
@@ -35,8 +44,9 @@ export const SocketProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, [pathname]);
 
-  const shouldRunRoleQuery = isAdminPanel && !!tokens.adminAccessToken;
-  const shouldRunUserQuery = !isAdminPanel && !!tokens.accessToken;
+  const isSignInPage = pathname === '/admin/signin' || pathname === '/signin';
+  const shouldRunRoleQuery = isAdminPanel && !isSignInPage && !!tokens.adminAccessToken;
+  const shouldRunUserQuery = !isAdminPanel && !isSignInPage && !!tokens.accessToken;
 
   const {
     data: roleData,
@@ -89,7 +99,7 @@ export const SocketProvider = ({ children }) => {
         } else if (cachedRole === 'user') {
           token = localStorage.getItem('accessToken');
         }
-        if (token) return { token, role: cachedRole };
+        if (token && token !== 'undefined' && token !== 'null') return { token, role: cachedRole };
       }
 
       // Fallback: decode tokens
@@ -97,7 +107,7 @@ export const SocketProvider = ({ children }) => {
       for (const r of allRoles) {
         const key = r === 'user' ? 'accessToken' : 'admin_access_token';
         const tk = localStorage.getItem(key);
-        if (tk) {
+        if (tk && tk !== 'undefined' && tk !== 'null') {
           try {
             const decoded = jwtDecode(tk);
             if (decoded?.role === r) {
@@ -131,18 +141,15 @@ export const SocketProvider = ({ children }) => {
       }
     });
 
-    socket.on('disconnect', () => {
-      console.log(`⚠️ Socket disconnected`);
+    socket.on('disconnect', (reason) => {
+      console.log(`⚠️ Socket disconnected:`, reason);
       setIsConnected(false);
     });
 
     socket.on('connect_error', (err) => {
-      console.error('❌ Socket connect_error:', err.message);
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('admin_access_token');
-      localStorage.removeItem('cachedRole');
-      toast.error('Session expired. Please log in again.');
-      window.location.href = '/';
+      console.warn('⚠️ Socket connection issue:', err.message);
+      setIsConnected(false);
+      // Do not clear tokens or log out on socket transport/network hiccups
     });
 
     socket.on('new_notification', (notification) => {

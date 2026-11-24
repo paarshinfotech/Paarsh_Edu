@@ -23,20 +23,44 @@ const SigninPage = () => {
   const response = await _ADMINLOGIN({ email, password }).unwrap();
 
   if (response?.success) {
+    const tokenData = response?.data || response;
+    const adminAccessToken =
+      response.admin_access_token ||
+      response.accessToken ||
+      tokenData.admin_access_token ||
+      tokenData.accessToken;
+    const adminRefreshToken =
+      response.admin_refresh_token ||
+      response.refreshToken ||
+      tokenData.admin_refresh_token ||
+      tokenData.refreshToken;
+    const userRole = response.role || tokenData.role || "admin";
+    const user = response.user || tokenData.user;
+    const redirectTo = response.redirectTo || tokenData.redirectTo || "/admin";
+
     dispatch(
       setAdminAuthData({
-        admin_access_token: response.admin_access_token,
-        admin_refresh_token: response.admin_refresh_token,
-        admin: response.user, // response.admin was incorrect; should be user
-        userRole: response.role,
+        adminAccessToken,
+        adminRefreshToken,
+        admin_access_token: adminAccessToken,
+        admin_refresh_token: adminRefreshToken,
+        admin: user,
+        user: user,
+        userRole: userRole,
+        role: userRole,
       })
     );
 
-    localStorage.setItem("admin_access_token", response.admin_access_token);
-    localStorage.setItem("admin_refresh_token", response.admin_refresh_token);
+    if (adminAccessToken) {
+      localStorage.setItem("admin_access_token", adminAccessToken);
+      localStorage.setItem("cachedRole", userRole);
+    }
+    if (adminRefreshToken) {
+      localStorage.setItem("admin_refresh_token", adminRefreshToken);
+    }
 
     toast.success(response.message || "Login successful");
-    router.push(response.redirectTo || "/admin");
+    router.push(redirectTo);
   } else {
     toast.error(response?.error || "Login failed");
   }
