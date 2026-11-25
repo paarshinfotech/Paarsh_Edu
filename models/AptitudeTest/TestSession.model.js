@@ -78,6 +78,8 @@ const testSessionSchema = new mongoose.Schema({
 });
 
 testSessionSchema.index({ student: 1, college: 1, testId: 1 });
+testSessionSchema.index({ startTime: -1 });
+testSessionSchema.index({ college: 1, startTime: -1 });
 
 export default mongoose.models.TestSession ||
   mongoose.model("TestSession", testSessionSchema);

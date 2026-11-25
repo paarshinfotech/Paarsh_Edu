@@ -28,11 +28,13 @@ export const GET = authMiddleware(
         ? { college: new mongoose.Types.ObjectId(collegeId) }
         : {};
      
-      // Fetch test sessions with populated student and college fields
+      // Fetch test sessions with populated student and college fields (exclude heavy questions array and use lean for fast loading)
       const testSessions = await TestSession.find(query)
+        .select("-questions")
         .populate("student", "name") // Populate student name
         .populate("college", "name") // Populate college name
-        .sort({ startTime: -1 }); // Sort by startTime, newest first
+        .sort({ startTime: -1 }) // Sort by startTime, newest first
+        .lean();
 
       return NextResponse.json({ success: true, testSessions });
     } catch (error) {
